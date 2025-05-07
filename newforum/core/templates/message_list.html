@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Чат форума - {{ .Forum.Title }}</title>
+    <style>
+        button {
+            padding: 8px 15px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .message-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .messages {
+            height: 500px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 20px;
+            background: #f9f9f9;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .message-author {
+            font-weight: bold;
+            color: #333;
+        }
+        .message-time {
+            font-size: 0.8em;
+            color: #666;
+        }
+        .message-content {
+            margin: 5px 0;
+        }
+        .message-actions {
+            margin-top: 5px;
+            display: flex;
+            gap: 5px;
+        }
+        .message-actions button:hover {
+            background: #009511;
+        }
+        .edit-form {
+            display: none;
+            margin-top: 10px;
+        }
+        .edit-form textarea {
+            width: 100%;
+            min-height: 60px;
+        }
+        #message-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        #message-form input,
+        #message-form textarea {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        #message-form textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .error {
+            text-align: center;
+            padding: 20px;
+            color: #c62828;
+            background: #ffebee;
+            border-radius: 4px;
+        }
+        #mini-chat {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            height: 400px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+        }
+        
+        #chat-header {
+            padding: 10px;
+            background: #4CAF50;
+            color: white;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        #chat-messages {
+            flex-grow: 1;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        
+        #chat-input {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #eee;
+        }
+        
+        #chat-message {
+            flex-grow: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        #send-message {
+            margin-left: 8px;
+            padding: 8px 12px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        #toggle-chat {
+            background: transparent;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        .message {
+            margin-bottom: 8px;
+            padding: 6px 8px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .message-author {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .chat-collapsed {
+            height: 40px !important;
+            width: 150px !important;
+        }
+        
+        .chat-collapsed #chat-messages,
+        .chat-collapsed #chat-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="message-container">
+        <h1>{{ .Forum.Title }}</h1>
+        <p>{{ .Forum.Description }}</p>
+        
+        <div id="messages" class="messages"></div>
+        
+        <form id="message-form">
+            <input type="text" id="author" placeholder="Ваше имя" required readonly>
+            <textarea id="content" placeholder="Ваше сообщение" required></textarea>
+            <button type="submit">Отправить</button>
+        </form>
+        
+        <div id="status" class="status"></div>
+    </div>
+
+    <div id="forum-data" data-forum-id="{{ .Forum.ID }}" style="display:none;"></div>
+    <div id="mini-chat">
+        <div id="chat-header">
+            <span>Общий чат</span>
+            <button id="toggle-chat">−</button>
+        </div>
+        <div id="chat-messages"></div>
+        <div id="chat-input">
+            <input type="text" id="chat-message" placeholder="Ваше сообщение...">
+            <button id="send-message">Отпр.</button>
+        </div>
+    </div>
+    
+
+    <script>
+        // === ФОРУМ ===
+        let ws;
+        const config = {
+            authService: 'http://localhost:3000',
+            forumService: 'http://localhost:3001'
+        };
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            // --- Форум ---
+            const forumId = document.getElementById('forum-data').dataset.forumId;
+            const messagesContainer = document.getElementById('messages');
+            const messageForm = document.getElementById('message-form');
+            const statusElement = document.getElementById('status');
+            const authorInput = document.getElementById('author');
+            const token = localStorage.getItem('jwt');
+            const username = localStorage.getItem('username');
+
+            if (!token || !username) {
+                authorInput.value = 'Пожалуйста, войдите в систему';
+                authorInput.disabled = true;
+                document.getElementById('content').disabled = true;
+                document.querySelector('#message-form button[type="submit"]').disabled = true;
+                updateStatus('Пожалуйста, войдите в систему для отправки сообщений', 'error');
+                window.location.href = `${config.authService}/auth/login`;
+            } else {
+                authorInput.value = username;
+            }
+
+            async function loadMessages() {
+                try {
+                    messagesContainer.innerHTML = '<div class="loading">Загрузка сообщений...</div>';
+                    
+                    const headers = {
+                        'Content-Type': 'application/json'
+                    };
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    }
+                    console.log(headers);
+                    console.log(token);
+                    
+                    const response = await fetch(`${config.forumService}/api/forums/${forumId}/messages-list`, { headers });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log(data);
+                    const messages = data.messages || [];
+                    const currentUser = data.currentUser || '';
+                    const currentRole = data.currentRole || '';
+                    
+                    messagesContainer.innerHTML = '';
+                    messages.forEach(msg => addMessageToDOM(msg, currentUser, currentRole));
+                } catch (e) {
+                    console.error('Error loading messages:', e);
+                    updateStatus('Ошибка загрузки сообщений', 'error');
+                    messagesContainer.innerHTML = '<div class="error">Не удалось загрузить сообщения</div>';
+                }
+            }
+
+            function addMessageToDOM(message, currentUser, currentRole) {
+                const messageElement = document.createElement('div');
+                messageElement.className = 'message';
+                messageElement.dataset.messageId = message.id;
+                // admin может всё, обычный пользователь — только свои
+                const isAuthor = message.author === currentUser;
+                const isAdmin = currentRole === 'admin';
+                const canEdit = isAuthor || isAdmin;
+                messageElement.innerHTML = `
+                    <div class="message-author">${escapeHtml(message.author)}</div>
+                    <div class="message-content">${escapeHtml(message.content)}</div>
+                    <div class="message-time">${formatDateTime(message.createdAt || message.created_at)}</div>
+                    ${canEdit ? `
+                        <div class="message-actions">
+                            <button class="edit-btn">Изменить</button>
+                            <button class="delete-btn">Удалить</button>
+                        </div>
+                        <div class="edit-form" style="display:none">
+                            <textarea class="edit-content">${escapeHtml(message.content)}</textarea>
+                            <button class="save-edit">Сохранить</button>
+                            <button class="cancel-edit">Отмена</button>
+                        </div>
+                    ` : ''}
+                `;
+                messagesContainer.appendChild(messageElement);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            function updateMessageInDOM(message, currentUser) {
+                const messageElement = document.querySelector(`.message[data-message-id="${message.id}"]`);
+                if (messageElement) {
+                    const isAuthor = message.author === currentUser;
+                    messageElement.querySelector('.message-content').textContent = message.content;
+                    let actionsDiv = messageElement.querySelector('.message-actions');
+                    if (!actionsDiv && isAuthor) {
+                        actionsDiv = document.createElement('div');
+                        actionsDiv.className = 'message-actions';
+                        actionsDiv.innerHTML = `
+                            <button class="edit-btn">Изменить</button>
+                            <button class="delete-btn">Удалить</button>
+                        `;
+                        messageElement.appendChild(actionsDiv);
+                        const editForm = document.createElement('div');
+                        editForm.className = 'edit-form';
+                        editForm.style.display = 'none';
+                        editForm.innerHTML = `
+                            <textarea class="edit-content">${escapeHtml(message.content)}</textarea>
+                            <button class="save-edit">Сохранить</button>
+                            <button class="cancel-edit">Отмена</button>
+                        `;
+                        messageElement.appendChild(editForm);
+                    } else if (actionsDiv) {
+                        actionsDiv.style.display = isAuthor ? 'flex' : 'none';
+                    }
+                    const editForm = messageElement.querySelector('.edit-form');
+                    if (editForm) editForm.style.display = 'none';
+                }
+            }
+
+            messagesContainer.addEventListener('click', function(e) {
+                const messageElement = e.target.closest('.message');
+                if (!messageElement) return;
+                const messageId = messageElement.dataset.messageId;
+                const messageAuthor = messageElement.querySelector('.message-author').textContent;
+                if (messageAuthor !== username) return;
+                if (e.target.classList.contains('delete-btn')) {
+                    if (confirm('Вы уверены, что хотите удалить это сообщение?')) {
+                        deleteMessage(messageId);
+                    }
+                }
+                if (e.target.classList.contains('edit-btn')) {
+                    const editForm = messageElement.querySelector('.edit-form');
+                    const actionsDiv = messageElement.querySelector('.message-actions');
+                    if (editForm && actionsDiv) {
+                        editForm.style.display = 'block';
+                        actionsDiv.style.display = 'none';
+                    }
+                }
+                if (e.target.classList.contains('save-edit')) {
+                    const editForm = messageElement.querySelector('.edit-form');
+                    const newContent = editForm.querySelector('.edit-content').value.trim();
+                    if (newContent) {
+                        updateMessage(messageId, newContent);
+                    }
+                }
+                if (e.target.classList.contains('cancel-edit')) {
+                    const editForm = messageElement.querySelector('.edit-form');
+                    const actionsDiv = messageElement.querySelector('.message-actions');
+                    if (editForm && actionsDiv) {
+                        editForm.style.display = 'none';
+                        actionsDiv.style.display = 'flex';
+                    }
+                }
+            });
+
+            async function updateMessage(messageId, newContent) {
+                if (!token) {
+                    updateStatus('Пожалуйста, войдите в систему', 'error');
+                    window.location.href = '/auth/login';
+                    return;
+                }
+                try {
+                    const response = await fetch(`/api/forums/${forumId}/messages/${messageId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ content: newContent })
+                    });
+                    if (!response.ok) throw new Error('Failed to update message');
+                    const data = await response.json();
+                    updateMessageInDOM(data, username);
+                    updateStatus('Сообщение обновлено', 'success');
+                } catch (error) {
+                    updateStatus('Ошибка при обновлении сообщения', 'error');
+                }
+            }
+
+            async function deleteMessage(messageId) {
+                if (!token) {
+                    updateStatus('Пожалуйста, войдите в систему', 'error');
+                    window.location.href = '/auth/login';
+                    return;
+                }
+                try {
+                    const response = await fetch(`/api/forums/${forumId}/messages/${messageId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!response.ok) throw new Error('Failed to delete message');
+                    removeMessageFromDOM(messageId);
+                    updateStatus('Сообщение удалено', 'success');
+                } catch (error) {
+                    updateStatus('Ошибка при удалении сообщения', 'error');
+                }
+            }
+
+            function removeMessageFromDOM(messageId) {
+                const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+                if (messageElement) messageElement.remove();
+            }
+
+            function formatDateTime(isoString) {
+                try {
+                    if (!isoString) return 'Дата не указана';
+                    const date = new Date(isoString);
+                    if (isNaN(date.getTime())) return 'Неверная дата';
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const hours = String(date.getHours()).padStart(2, '0');
+                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                    const seconds = String(date.getSeconds()).padStart(2, '0');
+                    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+                } catch (e) { return 'Ошибка даты'; }
+            }
+
+            function updateStatus(message, type) {
+                statusElement.textContent = message;
+                statusElement.className = `status ${type}`;
+                setTimeout(() => {
+                    statusElement.textContent = '';
+                    statusElement.className = 'status';
+                }, 5000);
+            }
+
+            function escapeHtml(text) {
+                if (!text) return '';
+                return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+            }
+
+            // Отправка сообщения в форум
+            messageForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!token || !username) {
+                    updateStatus('Пожалуйста, войдите в систему', 'error');
+                    window.location.href = '/auth/login';
+                    return;
+                }
+                const content = document.getElementById('content').value.trim();
+                if (!content) {
+                    updateStatus('Пожалуйста, введите сообщение', 'error');
+                    return;
+                }
+                try {
+                    const response = await fetch(`/api/forums/${forumId}/messages`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ author: username, content: content })
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            window.location.href = '/auth/login';
+                            return;
+                        }
+                        throw new Error(data.error || 'Server error');
+                    }
+                    document.getElementById('content').value = '';
+                    updateStatus('Message sent', 'success');
+                } catch (error) {
+                    updateStatus(error.message, 'error');
+                }
+            });
+
+            // WebSocket для форума
+            function connectWebSocket() {
+                const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+                ws = new WebSocket(`${protocol}${window.location.host}/ws/${forumId}`);
+                ws.onopen = () => updateStatus('Connected to chat', 'success');
+                ws.onclose = () => { updateStatus('Connection lost. Reconnecting...', 'error'); setTimeout(connectWebSocket, 5000); };
+                ws.onerror = (error) => { updateStatus('Connection error', 'error'); };
+                ws.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        switch(data.type) {
+                            case 'message_created':
+                                const message = { ...data.payload, createdAt: data.payload.created_at || formatDateTime(new Date().toISOString()) };
+                                addMessageToDOM(message, username, data.currentRole || '');
+                                break;
+                            case 'message_updated':
+                                updateMessageInDOM(data.payload, username);
+                                break;
+                            case 'message_deleted':
+                                removeMessageFromDOM(data.payload.messageId);
+                                break;
+                        }
+                    } catch (e) {}
+                };
+            }
+            await loadMessages();
+            connectWebSocket();
+
+            // === МИНИ-ЧАТ ===
+            const chatContainer = document.getElementById('mini-chat');
+            const chatMessages = document.getElementById('chat-messages');
+            const chatInput = document.getElementById('chat-message');
+            const sendButton = document.getElementById('send-message');
+            const toggleButton = document.getElementById('toggle-chat');
+            const apiEndpoint = '/api/global-chat';
+            const chatUsername = localStorage.getItem('username') || 'Guest';
+            const chatProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const chatWs = new WebSocket(`${chatProtocol}${window.location.host}/ws/global`);
+
+            chatWs.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                const messageElement = document.createElement('div');
+                messageElement.className = 'message';
+                messageElement.innerHTML = `
+                    <div class="message-author">${escapeHtml(data.username)}:</div>
+                    <div class="message-content">${escapeHtml(data.text)}</div>
+                    <div class="message-time" style="font-size:12px;color:#666">${escapeHtml(formatMessageTimestamp(data.timestamp))}</div>
+                `;
+                chatMessages.appendChild(messageElement);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            };
+
+            function formatMessageTimestamp(timestamp) {
+                const date = new Date(timestamp);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                return `${year}-${month}-${day} ${hours}:${minutes}`;
+            }
+
+            async function sendMessage() {
+                const token = localStorage.getItem('jwt');
+                if (!token) {
+                    alert('Пожалуйста, войдите в аккаунт, чтобы отправлять сообщения в мини-чате.');
+                    window.location.href = '/auth/login';
+                    return;
+                }
+                const username = localStorage.getItem('username') || 'Guest';
+                const message = chatInput.value.trim();
+                if (message) {
+                    try {
+                        const requestBody = JSON.stringify({ username: username, text: message });
+                        const response = await fetch(apiEndpoint, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: requestBody
+                        });
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            throw new Error(`HTTP error! status: ${response.status}, text: ${errorText}`);
+                        }
+                        chatInput.value = '';
+                    } catch (error) {
+                        alert('Failed to send message. Please try again.');
+                    }
+                }
+            }
+
+            sendButton.addEventListener('click', sendMessage);
+            chatInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            toggleButton.addEventListener('click', function() {
+                chatContainer.classList.toggle('chat-collapsed');
+                toggleButton.textContent = chatContainer.classList.contains('chat-collapsed') ? '+' : '−';
+            });
+        });
+    </script>
+</body>
+</html>
