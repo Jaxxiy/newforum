@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	templates = template.Must(template.ParseGlob("C:/Users/Soulless/Desktop/myforum/templates/*.html"))
+	templates = template.Must(template.ParseGlob("C:/Users/Soulless/Desktop/newforum/core/templates/*.html"))
 	upgrader  = websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -73,6 +73,7 @@ func RegisterForumHandlers(r *mux.Router, repo *repository.ForumsRepo) {
 
 	api := r.PathPrefix("/api").Subrouter()
 
+	// Auth page routes
 	r.HandleFunc("/auth/login", LoginPage).Methods("GET")
 	r.HandleFunc("/auth/register", RegisterPage).Methods("GET")
 

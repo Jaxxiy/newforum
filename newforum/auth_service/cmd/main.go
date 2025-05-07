@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gorilla/mux"
 	"github.com/jaxxiy/newforum/auth_service/internal/handlers"
 	"github.com/jaxxiy/newforum/auth_service/internal/repository"
-	"github.com/jaxxiy/newforum/auth_service/internal/services"
+	"github.com/jaxxiy/newforum/auth_service/internal/service"
+
+	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 )
 
@@ -52,7 +53,7 @@ func main() {
 	userRepo := repository.NewUserRepo(db)
 
 	// Initialize services
-	authService := services.NewAuthService(userRepo)
+	authService := service.NewAuthService(userRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -62,9 +63,7 @@ func main() {
 
 	// Register routes
 	auth := r.PathPrefix("/auth").Subrouter()
-	auth.HandleFunc("/register", authHandler.RegisterPage).Methods("GET")
 	auth.HandleFunc("/register", authHandler.Register).Methods("POST")
-	auth.HandleFunc("/login", authHandler.LoginPage).Methods("GET")
 	auth.HandleFunc("/login", authHandler.Login).Methods("POST")
 	auth.HandleFunc("/validate", authHandler.ValidateToken).Methods("GET")
 

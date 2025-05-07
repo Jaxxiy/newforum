@@ -1,4 +1,3 @@
-// internal/repository/forums.go
 package repository
 
 import (
@@ -6,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jaxxiy/newforum/internal/models"
+	"github.com/jaxxiy/newforum/forum_service/internal/models"
 )
 
 type ForumsRepo struct {

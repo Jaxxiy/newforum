@@ -17,7 +17,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jaxxiy/newforum/forum_service/internal/handlers"
 	"github.com/jaxxiy/newforum/forum_service/internal/repository"
-	"github.com/jaxxiy/newforum/forum_service/internal/services"
+	"github.com/jaxxiy/newforum/forum_service/internal/service"
 	"google.golang.org/grpc"
 )
 
@@ -76,7 +76,7 @@ func NewServer() *Server {
 	grpcSrv := grpc.NewServer()
 
 	// Запуск WebSocket
-	go services.StartWebSocket()
+	go service.StartWebSocket()
 
 	return &Server{
 		httpServer: httpSrv,

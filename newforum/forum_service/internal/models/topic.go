@@ -1,4 +1,4 @@
-package business
+package models
 
 type Topic struct {
 	ID      int    `json:"id"`

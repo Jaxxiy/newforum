@@ -219,7 +219,7 @@
         let ws;
         const config = {
             authService: 'http://localhost:3000',
-            forumService: 'http://localhost:3001'
+            forumService: 'http://localhost:8080'
         };
 
         document.addEventListener('DOMContentLoaded', async function() {
@@ -231,6 +231,7 @@
             const authorInput = document.getElementById('author');
             const token = localStorage.getItem('jwt');
             const username = localStorage.getItem('username');
+            let currentRole = '';
 
             if (!token || !username) {
                 authorInput.value = 'Пожалуйста, войдите в систему';
@@ -238,7 +239,7 @@
                 document.getElementById('content').disabled = true;
                 document.querySelector('#message-form button[type="submit"]').disabled = true;
                 updateStatus('Пожалуйста, войдите в систему для отправки сообщений', 'error');
-                window.location.href = `${config.authService}/auth/login`;
+                window.location.href = `${config.forumService}/auth/login`;
             } else {
                 authorInput.value = username;
             }
@@ -254,7 +255,6 @@
                         headers['Authorization'] = `Bearer ${token}`;
                     }
                     console.log(headers);
-                    console.log(token);
                     
                     const response = await fetch(`${config.forumService}/api/forums/${forumId}/messages-list`, { headers });
                     if (!response.ok) {
@@ -265,7 +265,8 @@
                     console.log(data);
                     const messages = data.messages || [];
                     const currentUser = data.currentUser || '';
-                    const currentRole = data.currentRole || '';
+                    currentRole = data.currentRole || '';
+                    console.log(currentRole)
                     
                     messagesContainer.innerHTML = '';
                     messages.forEach(msg => addMessageToDOM(msg, currentUser, currentRole));
@@ -304,13 +305,16 @@
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             }
 
-            function updateMessageInDOM(message, currentUser) {
+            function updateMessageInDOM(message, currentUser, currentRole) {
                 const messageElement = document.querySelector(`.message[data-message-id="${message.id}"]`);
                 if (messageElement) {
                     const isAuthor = message.author === currentUser;
+                    const isAdmin = currentRole === 'admin';
+                    const canEdit = isAuthor || isAdmin;
+                    console.log(canEdit);
                     messageElement.querySelector('.message-content').textContent = message.content;
                     let actionsDiv = messageElement.querySelector('.message-actions');
-                    if (!actionsDiv && isAuthor) {
+                    if (!actionsDiv && canEdit) {
                         actionsDiv = document.createElement('div');
                         actionsDiv.className = 'message-actions';
                         actionsDiv.innerHTML = `
@@ -328,7 +332,7 @@
                         `;
                         messageElement.appendChild(editForm);
                     } else if (actionsDiv) {
-                        actionsDiv.style.display = isAuthor ? 'flex' : 'none';
+                        actionsDiv.style.display = canEdit ? 'flex' : 'none';
                     }
                     const editForm = messageElement.querySelector('.edit-form');
                     if (editForm) editForm.style.display = 'none';
@@ -340,7 +344,10 @@
                 if (!messageElement) return;
                 const messageId = messageElement.dataset.messageId;
                 const messageAuthor = messageElement.querySelector('.message-author').textContent;
-                if (messageAuthor !== username) return;
+                const isAdmin = currentRole === 'admin';
+                const isAuthor = messageAuthor === username;
+                console.log(isAdmin, isAuthor);
+                if (!isAdmin && !isAuthor) return;
                 if (e.target.classList.contains('delete-btn')) {
                     if (confirm('Вы уверены, что хотите удалить это сообщение?')) {
                         deleteMessage(messageId);
@@ -374,11 +381,11 @@
             async function updateMessage(messageId, newContent) {
                 if (!token) {
                     updateStatus('Пожалуйста, войдите в систему', 'error');
-                    window.location.href = '/auth/login';
+                    window.location.href = `${config.forumService}/auth/login`;
                     return;
                 }
                 try {
-                    const response = await fetch(`/api/forums/${forumId}/messages/${messageId}`, {
+                    const response = await fetch(`${config.forumService}/api/forums/${forumId}/messages/${messageId}`, {
                         method: 'PUT',
                         headers: {
                             'Content-Type': 'application/json',
@@ -388,7 +395,7 @@
                     });
                     if (!response.ok) throw new Error('Failed to update message');
                     const data = await response.json();
-                    updateMessageInDOM(data, username);
+                    updateMessageInDOM(data, username, currentRole);
                     updateStatus('Сообщение обновлено', 'success');
                 } catch (error) {
                     updateStatus('Ошибка при обновлении сообщения', 'error');
@@ -398,11 +405,11 @@
             async function deleteMessage(messageId) {
                 if (!token) {
                     updateStatus('Пожалуйста, войдите в систему', 'error');
-                    window.location.href = '/auth/login';
+                    window.location.href = `${config.forumService}/auth/login`;
                     return;
                 }
                 try {
-                    const response = await fetch(`/api/forums/${forumId}/messages/${messageId}`, {
+                    const response = await fetch(`${config.forumService}/api/forums/${forumId}/messages/${messageId}`, {
                         method: 'DELETE',
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
@@ -453,7 +460,7 @@
                 e.preventDefault();
                 if (!token || !username) {
                     updateStatus('Пожалуйста, войдите в систему', 'error');
-                    window.location.href = '/auth/login';
+                    window.location.href = `${config.forumService}/auth/login`;
                     return;
                 }
                 const content = document.getElementById('content').value.trim();
@@ -462,7 +469,7 @@
                     return;
                 }
                 try {
-                    const response = await fetch(`/api/forums/${forumId}/messages`, {
+                    const response = await fetch(`${config.forumService}/api/forums/${forumId}/messages`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -473,7 +480,7 @@
                     const data = await response.json();
                     if (!response.ok) {
                         if (response.status === 401) {
-                            window.location.href = '/auth/login';
+                            window.location.href = `${config.forumService}/auth/login`;
                             return;
                         }
                         throw new Error(data.error || 'Server error');
@@ -488,7 +495,8 @@
             // WebSocket для форума
             function connectWebSocket() {
                 const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-                ws = new WebSocket(`${protocol}${window.location.host}/ws/${forumId}`);
+                const wsHost = config.forumService.replace(/^http:\/\//, '').replace(/^https:\/\//, '');
+                ws = new WebSocket(`${protocol}${wsHost}/ws/${forumId}`);
                 ws.onopen = () => updateStatus('Connected to chat', 'success');
                 ws.onclose = () => { updateStatus('Connection lost. Reconnecting...', 'error'); setTimeout(connectWebSocket, 5000); };
                 ws.onerror = (error) => { updateStatus('Connection error', 'error'); };
@@ -501,7 +509,7 @@
                                 addMessageToDOM(message, username, data.currentRole || '');
                                 break;
                             case 'message_updated':
-                                updateMessageInDOM(data.payload, username);
+                                updateMessageInDOM(data.payload, username, data.currentRole || '');
                                 break;
                             case 'message_deleted':
                                 removeMessageFromDOM(data.payload.messageId);
@@ -519,10 +527,11 @@
             const chatInput = document.getElementById('chat-message');
             const sendButton = document.getElementById('send-message');
             const toggleButton = document.getElementById('toggle-chat');
-            const apiEndpoint = '/api/global-chat';
+            const apiEndpoint = `${config.forumService}/api/global-chat`;
             const chatUsername = localStorage.getItem('username') || 'Guest';
             const chatProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            const chatWs = new WebSocket(`${chatProtocol}${window.location.host}/ws/global`);
+            const wsHost = config.forumService.replace(/^http:\/\//, '').replace(/^https:\/\//, '');
+            const chatWs = new WebSocket(`${chatProtocol}${wsHost}/ws/global`);
 
             chatWs.onmessage = function(event) {
                 const data = JSON.parse(event.data);
@@ -551,7 +560,7 @@
                 const token = localStorage.getItem('jwt');
                 if (!token) {
                     alert('Пожалуйста, войдите в аккаунт, чтобы отправлять сообщения в мини-чате.');
-                    window.location.href = '/auth/login';
+                    window.location.href = `${config.forumService}/auth/login`;
                     return;
                 }
                 const username = localStorage.getItem('username') || 'Guest';

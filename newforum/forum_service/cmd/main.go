@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/jaxxiy/newforum/internal/app"
+	"github.com/jaxxiy/newforum/forum_service/internal/app"
 )
 
 func main() {

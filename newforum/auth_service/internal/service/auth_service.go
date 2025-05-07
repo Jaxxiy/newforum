@@ -1,23 +1,26 @@
-package services
+package service
 
 import (
+	"database/sql"
 	"errors"
-	"os"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/jaxxiy/newforum/auth_service/internal/models"
 	"github.com/jaxxiy/newforum/auth_service/internal/repository"
+
+	"github.com/dgrijalva/jwt-go"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthService struct {
 	userRepo *repository.UserRepo
+	jwtKey   []byte
 }
 
 func NewAuthService(userRepo *repository.UserRepo) *AuthService {
 	return &AuthService{
 		userRepo: userRepo,
+		jwtKey:   []byte("your-secret-key"),
 	}
 }
 
@@ -70,13 +73,16 @@ func (s *AuthService) Login(req models.LoginRequest) (*models.AuthResponse, erro
 	// Get user by username
 	user, err := s.userRepo.GetByUsername(req.Username)
 	if err != nil {
-		return nil, errors.New("invalid credentials")
+		if err == sql.ErrNoRows {
+			return nil, errors.New("invalid username or password")
+		}
+		return nil, err
 	}
 
 	// Check password
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
 	if err != nil {
-		return nil, errors.New("invalid credentials")
+		return nil, errors.New("invalid username or password")
 	}
 
 	// Generate JWT token
@@ -91,60 +97,29 @@ func (s *AuthService) Login(req models.LoginRequest) (*models.AuthResponse, erro
 	}, nil
 }
 
-func (s *AuthService) generateToken(user models.User) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id":  user.ID,
-		"username": user.Username,
-		"role":     user.Role,
-		"exp":      time.Now().Add(time.Hour * 24).Unix(),
-	})
-
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		jwtSecret = "your-secret-key"
-	}
-
-	tokenString, err := token.SignedString([]byte(jwtSecret))
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
-}
-
 func (s *AuthService) ValidateToken(tokenString string) (*models.User, error) {
-	// Get JWT secret from environment variable
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		jwtSecret = "your-secret-key" // Default secret key for development
-	}
-
-	// Parse token
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return []byte(jwtSecret), nil
+		return s.jwtKey, nil
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Validate token
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		userID := int(claims["user_id"].(float64))
-		username := claims["username"].(string)
-
-		// Get user from database
-		user, err := s.userRepo.GetByUsername(username)
-		if err != nil {
-			return nil, err
-		}
-
-		if user.ID != userID {
-			return nil, errors.New("invalid token")
-		}
-
-		return user, nil
+		return s.userRepo.GetUserByID(userID)
 	}
 
 	return nil, errors.New("invalid token")
+}
+
+func (s *AuthService) generateToken(user models.User) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id":  user.ID,
+		"username": user.Username,
+		"exp":      time.Now().Add(time.Hour * 24).Unix(),
+	})
+
+	return token.SignedString(s.jwtKey)
 }

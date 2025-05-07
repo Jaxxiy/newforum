@@ -6,16 +6,17 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gorilla/mux"
 	"github.com/jaxxiy/newforum/auth_service/internal/models"
-	"github.com/jaxxiy/newforum/auth_service/internal/services"
+	"github.com/jaxxiy/newforum/auth_service/internal/service"
+
+	"github.com/gorilla/mux"
 )
 
 type AuthHandler struct {
-	authService *services.AuthService
+	authService *service.AuthService
 }
 
-func NewAuthHandler(authService *services.AuthService) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
 	}
@@ -95,7 +96,7 @@ func (h *AuthHandler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	templates := template.Must(template.ParseGlob("C:/Users/Soulless/Desktop/myforum/templates/*.html"))
+	templates := template.Must(template.ParseGlob("C:/Users/Soulless/Desktop/newforum/core/templates/*.html"))
 	templates.ExecuteTemplate(w, "register.html", nil)
 }
 
@@ -104,7 +105,7 @@ func (h *AuthHandler) LoginPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	templates := template.Must(template.ParseGlob("C:/Users/Soulless/Desktop/myforum/templates/*.html"))
+	templates := template.Must(template.ParseGlob("C:/Users/Soulless/Desktop/newforum/core/templates/*.html"))
 	templates.ExecuteTemplate(w, "login.html", nil)
 }
 

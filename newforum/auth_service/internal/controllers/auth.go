@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/jaxxiy/newforum/auth_service/internal/models"
 	"github.com/jaxxiy/newforum/auth_service/internal/repository"
 	"github.com/jaxxiy/newforum/core/pkg/jwt"
 
@@ -44,13 +45,13 @@ func (c *AuthController) LoginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *AuthController) Register(w http.ResponseWriter, r *http.Request) {
-	var req business.RegisterRequest
+	var req models.RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
-	user := business.User{
+	user := models.User{
 		Username: req.Username,
 		Email:    req.Email,
 		Password: req.Password,
@@ -66,7 +67,7 @@ func (c *AuthController) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *AuthController) Login(w http.ResponseWriter, r *http.Request) {
-	var req business.LoginRequest
+	var req models.LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
