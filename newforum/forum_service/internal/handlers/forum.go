@@ -309,6 +309,13 @@ func sendWSMessage(forumID int, message WSMessage) {
 	}
 }
 
+// ListForums godoc
+// @Summary Get all forums
+// @Description Get a list of all forums
+// @Tags forums
+// @Produce json
+// @Success 200 {array} models.Forum
+// @Router /forums [get]
 func ListForums(repo *repository.ForumsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		forums, err := repo.GetAll()
@@ -328,7 +335,17 @@ func NewForumForm() http.HandlerFunc {
 	}
 }
 
-// Обработчик для создания форума
+// CreateForum godoc
+// @Summary Create a new forum
+// @Description Create a new forum with title and description
+// @Tags forums
+// @Accept json
+// @Produce json
+// @Param forum body models.Forum true "Forum info"
+// @Success 201 {object} models.Forum
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /forums [post]
 func CreateForum(repo *repository.ForumsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		title := r.FormValue("title")
@@ -363,7 +380,15 @@ func CreateForum(repo *repository.ForumsRepo) http.HandlerFunc {
 	}
 }
 
-// Обработчик для получения форума по ID
+// GetForum godoc
+// @Summary Get forum by ID
+// @Description Get forum details by ID
+// @Tags forums
+// @Produce json
+// @Param id path int true "Forum ID"
+// @Success 200 {object} models.Forum
+// @Failure 404 {object} map[string]string
+// @Router /forums/{id} [get]
 func GetForum(repo *repository.ForumsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -395,6 +420,18 @@ func GetAllForums(repo *repository.ForumsRepo) http.HandlerFunc {
 	}
 }
 
+// UpdateForum godoc
+// @Summary Update forum
+// @Description Update forum details
+// @Tags forums
+// @Accept json
+// @Produce json
+// @Param id path int true "Forum ID"
+// @Param forum body models.Forum true "Forum info"
+// @Success 200 {object} models.Forum
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /forums/{id} [put]
 func UpdateForum(repo *repository.ForumsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -415,7 +452,14 @@ func UpdateForum(repo *repository.ForumsRepo) http.HandlerFunc {
 	}
 }
 
-// DeleteForum (новая функция)
+// DeleteForum godoc
+// @Summary Delete forum
+// @Description Delete forum by ID
+// @Tags forums
+// @Param id path int true "Forum ID"
+// @Success 204 "No Content"
+// @Failure 404 {object} map[string]string
+// @Router /forums/{id} [delete]
 func DeleteForum(repo *repository.ForumsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -430,6 +474,15 @@ func DeleteForum(repo *repository.ForumsRepo) http.HandlerFunc {
 	}
 }
 
+// GetMessages godoc
+// @Summary Get forum messages
+// @Description Get all messages for a specific forum
+// @Tags messages
+// @Produce json
+// @Param id path int true "Forum ID"
+// @Success 200 {array} models.Message
+// @Failure 404 {object} map[string]string
+// @Router /forums/{id}/messages [get]
 func GetMessages(repo *repository.ForumsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -483,6 +536,19 @@ func GetMessages(repo *repository.ForumsRepo) http.HandlerFunc {
 	}
 }
 
+// UpdateMessage godoc
+// @Summary Update message
+// @Description Update an existing message
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Param forum_id path int true "Forum ID"
+// @Param message_id path int true "Message ID"
+// @Param message body models.Message true "Message info"
+// @Success 200 {object} models.Message
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /forums/{forum_id}/messages/{message_id} [put]
 func UpdateMessage(repo *repository.ForumsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Извлекаем ID сообщения из URL
@@ -547,6 +613,15 @@ func UpdateMessage(repo *repository.ForumsRepo) http.HandlerFunc {
 
 // Отправка сообщения
 
+// DeleteMessage godoc
+// @Summary Delete message
+// @Description Delete a message from a forum
+// @Tags messages
+// @Param forum_id path int true "Forum ID"
+// @Param message_id path int true "Message ID"
+// @Success 204 "No Content"
+// @Failure 404 {object} map[string]string
+// @Router /forums/{forum_id}/messages/{message_id} [delete]
 func DeleteMessage(repo *repository.ForumsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -754,7 +829,17 @@ func handleGlobalChatMessage(repo *repository.ForumsRepo) http.HandlerFunc {
 	}
 }
 
-// Новый API-эндпоинт для загрузки сообщений с учетом токена
+// GetMessagesAPI godoc
+// @Summary Get forum messages with user info
+// @Description Get all messages for a forum with current user info
+// @Tags messages
+// @Produce json
+// @Param id path int true "Forum ID"
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /forums/{id}/messages-list [get]
 func GetMessagesAPI(repo *repository.ForumsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

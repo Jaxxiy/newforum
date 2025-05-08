@@ -1,0 +1,301 @@
+basePath: /api
+definitions:
+  models.Forum:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      title:
+        type: string
+    type: object
+  models.Message:
+    properties:
+      author:
+        type: string
+      content:
+        type: string
+      created_at:
+        type: string
+      forum_id:
+        type: integer
+      id:
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Forum Service API for managing forums and messages
+  title: Forum Service API
+  version: "1.0"
+paths:
+  /forums:
+    get:
+      description: Get a list of all forums
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Forum'
+            type: array
+      summary: Get all forums
+      tags:
+      - forums
+    post:
+      consumes:
+      - application/json
+      description: Create a new forum with title and description
+      parameters:
+      - description: Forum info
+        in: body
+        name: forum
+        required: true
+        schema:
+          $ref: '#/definitions/models.Forum'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Forum'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a new forum
+      tags:
+      - forums
+  /forums/{forum_id}/messages/{message_id}:
+    delete:
+      description: Delete a message from a forum
+      parameters:
+      - description: Forum ID
+        in: path
+        name: forum_id
+        required: true
+        type: integer
+      - description: Message ID
+        in: path
+        name: message_id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete message
+      tags:
+      - messages
+    put:
+      consumes:
+      - application/json
+      description: Update an existing message
+      parameters:
+      - description: Forum ID
+        in: path
+        name: forum_id
+        required: true
+        type: integer
+      - description: Message ID
+        in: path
+        name: message_id
+        required: true
+        type: integer
+      - description: Message info
+        in: body
+        name: message
+        required: true
+        schema:
+          $ref: '#/definitions/models.Message'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Message'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update message
+      tags:
+      - messages
+  /forums/{id}:
+    delete:
+      description: Delete forum by ID
+      parameters:
+      - description: Forum ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete forum
+      tags:
+      - forums
+    get:
+      description: Get forum details by ID
+      parameters:
+      - description: Forum ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Forum'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get forum by ID
+      tags:
+      - forums
+    put:
+      consumes:
+      - application/json
+      description: Update forum details
+      parameters:
+      - description: Forum ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Forum info
+        in: body
+        name: forum
+        required: true
+        schema:
+          $ref: '#/definitions/models.Forum'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Forum'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update forum
+      tags:
+      - forums
+  /forums/{id}/messages:
+    get:
+      description: Get all messages for a specific forum
+      parameters:
+      - description: Forum ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Message'
+            type: array
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get forum messages
+      tags:
+      - messages
+  /forums/{id}/messages-list:
+    get:
+      description: Get all messages for a forum with current user info
+      parameters:
+      - description: Forum ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get forum messages with user info
+      tags:
+      - messages
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

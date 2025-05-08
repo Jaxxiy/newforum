@@ -22,6 +22,17 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 	}
 }
 
+// Register godoc
+// @Summary Register a new user
+// @Description Register a new user with username, email and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param user body models.RegisterRequest true "User registration info"
+// @Success 201 {object} models.AuthResponse
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /register [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -41,9 +52,21 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(response)
 }
 
+// Login godoc
+// @Summary Login user
+// @Description Login with username and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param user body models.LoginRequest true "User login info"
+// @Success 200 {object} models.AuthResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -66,6 +89,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// ValidateToken godoc
+// @Summary Validate JWT token
+// @Description Validate JWT token and return user info
+// @Tags auth
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} models.User
+// @Failure 401 {object} map[string]string
+// @Router /validate [get]
 func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {

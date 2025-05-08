@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/jaxxiy/newforum/auth_service/docs" // swagger docs
 	"github.com/jaxxiy/newforum/auth_service/internal/grpc"
 	"github.com/jaxxiy/newforum/auth_service/internal/handlers"
 	"github.com/jaxxiy/newforum/auth_service/internal/repository"
@@ -17,7 +18,18 @@ import (
 
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
+
+// @title Auth Service API
+// @version 1.0
+// @description Authentication and Authorization Service API
+// @host localhost:3000
+// @BasePath /auth
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -65,6 +77,9 @@ func main() {
 
 	// Initialize router
 	r := mux.NewRouter()
+
+	// Swagger documentation
+	r.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
 
 	// Register routes
 	auth := r.PathPrefix("/auth").Subrouter()
