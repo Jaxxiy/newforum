@@ -123,3 +123,7 @@ func (s *AuthService) generateToken(user models.User) (string, error) {
 
 	return token.SignedString(s.jwtKey)
 }
+
+func (s *AuthService) GetUserByID(userID int) (*models.User, error) {
+	return s.userRepo.GetUserByID(userID)
+}

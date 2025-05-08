@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package = "github.com/jaxxiy/newforum/core/proto";
+
+service AuthService {
+  rpc GetUserByID(GetUserRequest) returns (UserResponse) {}
+  rpc GetUserByToken(GetUserByTokenRequest) returns (UserResponse) {}
+}
+
+message GetUserRequest {
+  int32 user_id = 1;
+}
+
+message GetUserByTokenRequest {
+  string token = 1;
+}
+
+message UserResponse {
+  int32 id = 1;
+  string username = 2;
+  string email = 3;
+  string role = 4;
+} 

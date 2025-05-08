@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
+	"github.com/jaxxiy/newforum/auth_service/internal/grpc"
 	"github.com/jaxxiy/newforum/auth_service/internal/handlers"
 	"github.com/jaxxiy/newforum/auth_service/internal/repository"
 	"github.com/jaxxiy/newforum/auth_service/internal/service"
@@ -67,14 +72,60 @@ func main() {
 	auth.HandleFunc("/login", authHandler.Login).Methods("POST")
 	auth.HandleFunc("/validate", authHandler.ValidateToken).Methods("GET")
 
-	// Start server
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "3000" // Default port for auth service
+	// Create HTTP server
+	httpPort := os.Getenv("PORT")
+	if httpPort == "" {
+		httpPort = "3000" // Default port for auth service
 	}
 
-	log.Printf("Auth service starting on port %s", port)
-	if err := http.ListenAndServe(":"+port, corsMiddleware(r)); err != nil {
-		log.Fatal(err)
+	httpServer := &http.Server{
+		Addr:    ":" + httpPort,
+		Handler: corsMiddleware(r),
 	}
+
+	// Create gRPC server
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "50051" // Default gRPC port
+	}
+
+	grpcServer := grpc.NewServer(authService)
+
+	// Start gRPC server in a goroutine
+	go func() {
+		log.Printf("Starting gRPC server on port %s", grpcPort)
+		if err := grpc.StartGRPCServer(authService, grpcPort); err != nil {
+			log.Fatalf("Failed to start gRPC server: %v", err)
+		}
+	}()
+
+	// Start HTTP server in a goroutine
+	go func() {
+		log.Printf("Starting HTTP server on port %s", httpPort)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start HTTP server: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	// Graceful shutdown
+	log.Println("Shutting down servers...")
+
+	// Create shutdown context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Shutdown HTTP server
+	if err := httpServer.Shutdown(ctx); err != nil {
+		log.Fatalf("HTTP server shutdown failed: %v", err)
+	}
+
+	// Shutdown gRPC server
+	grpcServer.Stop()
+
+	log.Println("Servers stopped gracefully")
 }

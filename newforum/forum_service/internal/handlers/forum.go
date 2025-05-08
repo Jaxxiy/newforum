@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/jaxxiy/newforum/core/pkg/jwt"
+	"github.com/jaxxiy/newforum/forum_service/internal/grpc"
 	"github.com/jaxxiy/newforum/forum_service/internal/models"
 	"github.com/jaxxiy/newforum/forum_service/internal/repository"
 )
@@ -42,7 +43,17 @@ var (
 	}
 	globalChatBroadcast = make(chan GlobalChatMessage)
 	globalChatHistory   []GlobalChatMessage
+
+	authClient *grpc.Client
 )
+
+func init() {
+	var err error
+	authClient, err = grpc.NewClient("localhost:50051")
+	if err != nil {
+		log.Fatalf("Failed to create auth client: %v", err)
+	}
+}
 
 type GlobalChatMessageRequest struct {
 	Author  string `json:"username"`
@@ -746,6 +757,7 @@ func handleGlobalChatMessage(repo *repository.ForumsRepo) http.HandlerFunc {
 // Новый API-эндпоинт для загрузки сообщений с учетом токена
 func GetMessagesAPI(repo *repository.ForumsRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 		vars := mux.Vars(r)
 		forumID, err := strconv.Atoi(vars["id"])
 		if err != nil {
@@ -759,21 +771,22 @@ func GetMessagesAPI(repo *repository.ForumsRepo) http.HandlerFunc {
 			return
 		}
 
-		// Получаем текущего пользователя из JWT токена
-		authHeader := r.Header.Get("Authorization")
-		fmt.Println(authHeader)
+		// Безопасная проверка токена
 		var currentUser, currentRole string
-		if authHeader != "" {
+		if authHeader := r.Header.Get("Authorization"); authHeader != "" {
 			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-			if claims, err := jwt.ParseToken(tokenString, "your-secret-key"); err == nil {
-				if user, err := repo.GetUserByID(claims.UserID); err == nil {
+			if tokenString != "" && authClient != nil {
+				user, err := authClient.GetUserByToken(ctx, tokenString)
+				if err != nil {
+					log.Printf("Error getting user by token: %v", err)
+					// Продолжаем выполнение без информации о пользователе
+				} else if user != nil {
 					currentUser = user.Username
 					currentRole = user.Role
 				}
 			}
 		}
-		fmt.Println(currentUser)
-		fmt.Println(currentRole)
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"messages":    messages,

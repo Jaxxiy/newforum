@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -73,14 +72,11 @@ func NewServer() *Server {
 		Handler: r,
 	}
 
-	grpcSrv := grpc.NewServer()
-
 	// Запуск WebSocket
 	go service.StartWebSocket()
 
 	return &Server{
 		httpServer: httpSrv,
-		grpcServer: grpcSrv,
 		db:         db,
 	}
 }
@@ -88,19 +84,6 @@ func NewServer() *Server {
 func (s *Server) Run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
-	// gRPC
-	ln, err := net.Listen("tcp", ":9090")
-	if err != nil {
-		return err
-	}
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		if err := s.grpcServer.Serve(ln); err != nil {
-			log.Printf("gRPC остановился: %v", err)
-		}
-	}()
 
 	// HTTP
 	s.wg.Add(1)
@@ -113,7 +96,6 @@ func (s *Server) Run() error {
 
 	<-ctx.Done()
 	log.Println("Завершение работы...")
-	s.grpcServer.GracefulStop()
 	if err := s.httpServer.Shutdown(context.Background()); err != nil {
 		return err
 	}
