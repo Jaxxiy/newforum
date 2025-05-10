@@ -122,10 +122,23 @@ func (r *UserRepo) GetUserByID(userID int) (*models.User, error) {
 
 func (r *UserRepo) UpdatePassword(userID int, hashedPassword string) error {
 	query := `
-		UPDATE users
-		SET password = $1, updated_at = $2
-		WHERE id = $3`
+        UPDATE users
+        SET password = $1, updated_at = $2
+        WHERE id = $3`
 
-	_, err := r.db.Exec(query, hashedPassword, time.Now(), userID)
-	return err
+	result, err := r.db.Exec(query, hashedPassword, time.Now(), userID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return errors.New("user not found") // Explicitly return "user not found" error
+	}
+
+	return nil
 }

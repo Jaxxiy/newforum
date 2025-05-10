@@ -36,7 +36,7 @@ func (r *ForumsRepo) GetAll() ([]models.Forum, error) {
 	}
 	defer rows.Close()
 
-	var forums []models.Forum
+	forums := []models.Forum{}
 	for rows.Next() {
 		var f models.Forum
 		if err := rows.Scan(&f.ID, &f.Title, &f.Description, &f.CreatedAt); err != nil {
@@ -136,7 +136,7 @@ func (r *ForumsRepo) GetMessages(forumID int) ([]models.Message, error) {
 	}
 	defer rows.Close()
 
-	var messages []models.Message
+	messages := []models.Message{}
 	for rows.Next() {
 		var m models.Message
 		if err := rows.Scan(&m.ID, &m.ForumID, &m.Author, &m.Content, &m.CreatedAt); err != nil {
@@ -207,7 +207,7 @@ func (r *ForumsRepo) GetGlobalMessages(limit int) ([]models.GlobalMessage, error
 	}
 	defer rows.Close()
 
-	var messages []models.GlobalMessage
+	messages := []models.GlobalMessage{}
 	for rows.Next() {
 		var m models.GlobalMessage
 		if err := rows.Scan(&m.ID, &m.Author, &m.Content, &m.CreatedAt); err != nil {
@@ -239,7 +239,7 @@ func (r *ForumsRepo) GetGlobalChatHistory(limit int) ([]models.GlobalMessage, er
 	}
 	defer rows.Close()
 
-	var history []models.GlobalMessage
+	history := []models.GlobalMessage{}
 	for rows.Next() {
 		var msg models.GlobalMessage
 		err := rows.Scan(&msg.ID, &msg.Author, &msg.Content, &msg.CreatedAt)
