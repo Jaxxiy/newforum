@@ -19,11 +19,11 @@ type AuthServiceInterface interface {
 }
 
 type AuthService struct {
-	userRepo *repository.UserRepo
+	userRepo repository.UserRepository
 	jwtKey   []byte
 }
 
-func NewAuthService(userRepo *repository.UserRepo) *AuthService {
+func NewAuthService(userRepo repository.UserRepository) *AuthService {
 	return &AuthService{
 		userRepo: userRepo,
 		jwtKey:   []byte("your-secret-key"),
