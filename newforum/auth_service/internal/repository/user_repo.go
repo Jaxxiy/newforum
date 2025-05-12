@@ -8,6 +8,14 @@ import (
 	"github.com/jaxxiy/newforum/auth_service/internal/models"
 )
 
+type UserRepository interface {
+	Create(user models.User) (int, error)
+	GetByUsername(username string) (*models.User, error)
+	GetByEmail(email string) (*models.User, error)
+	GetUserByID(userID int) (*models.User, error)
+	UpdatePassword(userID int, hashedPassword string) error
+}
+
 type UserRepo struct {
 	db *sql.DB
 }

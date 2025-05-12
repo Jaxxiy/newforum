@@ -12,6 +12,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type AuthServiceInterface interface {
+	Register(req models.RegisterRequest) (*models.AuthResponse, error)
+	Login(req models.LoginRequest) (*models.AuthResponse, error)
+	ValidateToken(token string) (*models.User, error)
+}
+
 type AuthService struct {
 	userRepo *repository.UserRepo
 	jwtKey   []byte

@@ -44,7 +44,7 @@ var (
 	globalChatBroadcast = make(chan GlobalChatMessage)
 	globalChatHistory   []GlobalChatMessage
 
-	authClient *grpc.Client
+	authClient grpc.AuthClient
 )
 
 func init() {
@@ -71,7 +71,7 @@ type WSMessage struct {
 	Payload interface{} `json:"payload"`
 }
 
-func RegisterForumHandlers(r *mux.Router, repo *repository.ForumsRepo) {
+func RegisterForumHandlers(r *mux.Router, repo repository.ForumsRepository) {
 
 	r.HandleFunc("/ws/global", func(w http.ResponseWriter, r *http.Request) {
 		serveGlobalChat(w, r, repo)
@@ -202,7 +202,7 @@ func unregisterClient(forumID int, conn *websocket.Conn) {
 }
 
 // Улучшенный обработчик сообщений
-func PostMessage(repo *repository.ForumsRepo) http.HandlerFunc {
+func PostMessage(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -316,7 +316,7 @@ func sendWSMessage(forumID int, message WSMessage) {
 // @Produce json
 // @Success 200 {array} models.Forum
 // @Router /forums [get]
-func ListForums(repo *repository.ForumsRepo) http.HandlerFunc {
+func ListForums(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		forums, err := repo.GetAll()
 		if err != nil {
@@ -346,7 +346,7 @@ func NewForumForm() http.HandlerFunc {
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /forums [post]
-func CreateForum(repo *repository.ForumsRepo) http.HandlerFunc {
+func CreateForum(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		title := r.FormValue("title")
 		description := r.FormValue("description")
@@ -389,7 +389,7 @@ func CreateForum(repo *repository.ForumsRepo) http.HandlerFunc {
 // @Success 200 {object} models.Forum
 // @Failure 404 {object} map[string]string
 // @Router /forums/{id} [get]
-func GetForum(repo *repository.ForumsRepo) http.HandlerFunc {
+func GetForum(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		idStr := vars["id"]
@@ -409,7 +409,7 @@ func GetForum(repo *repository.ForumsRepo) http.HandlerFunc {
 }
 
 // GetAllForums возвращает все форумы
-func GetAllForums(repo *repository.ForumsRepo) http.HandlerFunc {
+func GetAllForums(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		forums, err := repo.GetAll()
 		if err != nil {
@@ -432,7 +432,7 @@ func GetAllForums(repo *repository.ForumsRepo) http.HandlerFunc {
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Router /forums/{id} [put]
-func UpdateForum(repo *repository.ForumsRepo) http.HandlerFunc {
+func UpdateForum(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		id, _ := strconv.Atoi(vars["id"])
@@ -460,7 +460,7 @@ func UpdateForum(repo *repository.ForumsRepo) http.HandlerFunc {
 // @Success 204 "No Content"
 // @Failure 404 {object} map[string]string
 // @Router /forums/{id} [delete]
-func DeleteForum(repo *repository.ForumsRepo) http.HandlerFunc {
+func DeleteForum(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		id, _ := strconv.Atoi(vars["id"])
@@ -483,7 +483,7 @@ func DeleteForum(repo *repository.ForumsRepo) http.HandlerFunc {
 // @Success 200 {array} models.Message
 // @Failure 404 {object} map[string]string
 // @Router /forums/{id}/messages [get]
-func GetMessages(repo *repository.ForumsRepo) http.HandlerFunc {
+func GetMessages(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		forumID, err := strconv.Atoi(vars["id"])
@@ -549,7 +549,7 @@ func GetMessages(repo *repository.ForumsRepo) http.HandlerFunc {
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Router /forums/{forum_id}/messages/{message_id} [put]
-func UpdateMessage(repo *repository.ForumsRepo) http.HandlerFunc {
+func UpdateMessage(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Извлекаем ID сообщения из URL
 		vars := mux.Vars(r)
@@ -622,7 +622,7 @@ func UpdateMessage(repo *repository.ForumsRepo) http.HandlerFunc {
 // @Success 204 "No Content"
 // @Failure 404 {object} map[string]string
 // @Router /forums/{forum_id}/messages/{message_id} [delete]
-func DeleteMessage(repo *repository.ForumsRepo) http.HandlerFunc {
+func DeleteMessage(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		messageID, err := strconv.Atoi(vars["message_id"])
@@ -677,7 +677,7 @@ func renderTemplate(w http.ResponseWriter, tmpl string, data interface{}) {
 	}
 }
 
-func serveGlobalChat(w http.ResponseWriter, r *http.Request, repo *repository.ForumsRepo) {
+func serveGlobalChat(w http.ResponseWriter, r *http.Request, repo repository.ForumsRepository) {
 	conn, err := globalChatUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("Global chat WebSocket upgrade error: %v", err)
@@ -767,7 +767,7 @@ func handleGlobalChatMessages() {
 }
 
 // Обработчик POST-запроса для глобального чата
-func handleGlobalChatMessage(repo *repository.ForumsRepo) http.HandlerFunc {
+func handleGlobalChatMessage(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -840,7 +840,7 @@ func handleGlobalChatMessage(repo *repository.ForumsRepo) http.HandlerFunc {
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Router /forums/{id}/messages-list [get]
-func GetMessagesAPI(repo *repository.ForumsRepo) http.HandlerFunc {
+func GetMessagesAPI(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		vars := mux.Vars(r)

@@ -8,6 +8,22 @@ import (
 	"github.com/jaxxiy/newforum/forum_service/internal/models"
 )
 
+type ForumsRepository interface {
+	GetAll() ([]models.Forum, error)
+	GetByID(id int) (*models.Forum, error)
+	Create(forum models.Forum) (int, error)
+	Update(id int, forum models.Forum) error
+	Delete(id int) error
+	GetMessages(forumID int) ([]models.Message, error)
+	CreateMessage(msg models.Message) (int, error)
+	GetMessageByID(id int) (*models.Message, error)
+	PutMessage(id int, content string) (*models.Message, error)
+	DeleteMessage(id int) error
+	CreateGlobalMessage(msg models.GlobalMessage) (int, error)
+	GetGlobalChatHistory(limit int) ([]models.GlobalMessage, error)
+	GetUserByID(id int) (*models.User, error)
+}
+
 type ForumsRepo struct {
 	DB *sql.DB
 }

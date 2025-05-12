@@ -14,12 +14,12 @@ import (
 )
 
 type AuthController struct {
-	userRepo  *repository.UserRepo
+	userRepo  repository.UserRepository // Используем интерфейс вместо конкретной реализации
 	jwtSecret string
 	templates *template.Template
 }
 
-func NewAuthController(repo *repository.UserRepo, secret string) *AuthController {
+func NewAuthController(repo repository.UserRepository, secret string) *AuthController {
 	templates := template.Must(template.ParseGlob("templates/*.html"))
 	return &AuthController{
 		userRepo:  repo,
