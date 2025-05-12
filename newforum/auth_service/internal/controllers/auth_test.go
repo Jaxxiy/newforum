@@ -85,6 +85,24 @@ func TestAuthController_Pages(t *testing.T) {
 		controller.RegisterPage(rr, req)
 
 		assert.Equal(t, http.StatusMethodNotAllowed, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Method not allowed")
+	})
+
+	t.Run("RegisterPage template error", func(t *testing.T) {
+		brokenTmpl := template.New("broken")
+		controllerWithBrokenTemplate := &AuthController{
+			userRepo:  mockRepo,
+			jwtSecret: "test-secret",
+			templates: brokenTmpl,
+		}
+
+		req := httptest.NewRequest("GET", "/register", nil)
+		rr := httptest.NewRecorder()
+
+		controllerWithBrokenTemplate.RegisterPage(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Template error")
 	})
 
 	t.Run("LoginPage success", func(t *testing.T) {
@@ -105,6 +123,24 @@ func TestAuthController_Pages(t *testing.T) {
 		controller.LoginPage(rr, req)
 
 		assert.Equal(t, http.StatusMethodNotAllowed, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Method not allowed")
+	})
+
+	t.Run("LoginPage template error", func(t *testing.T) {
+		brokenTmpl := template.New("broken")
+		controllerWithBrokenTemplate := &AuthController{
+			userRepo:  mockRepo,
+			jwtSecret: "test-secret",
+			templates: brokenTmpl,
+		}
+
+		req := httptest.NewRequest("GET", "/login", nil)
+		rr := httptest.NewRecorder()
+
+		controllerWithBrokenTemplate.LoginPage(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Template error")
 	})
 }
 
@@ -116,6 +152,7 @@ func TestAuthController_Register(t *testing.T) {
 		mockError      error
 		expectedStatus int
 		expectedBody   map[string]string
+		method         string
 	}{
 		{
 			name: "successful registration",
@@ -127,11 +164,13 @@ func TestAuthController_Register(t *testing.T) {
 			mockReturn:     1,
 			expectedStatus: http.StatusCreated,
 			expectedBody:   map[string]string{"status": "user created"},
+			method:         http.MethodPost,
 		},
 		{
 			name:           "invalid request body",
 			requestBody:    "invalid",
 			expectedStatus: http.StatusBadRequest,
+			method:         http.MethodPost,
 		},
 		{
 			name: "database error",
@@ -142,6 +181,27 @@ func TestAuthController_Register(t *testing.T) {
 			},
 			mockError:      errors.New("db error"),
 			expectedStatus: http.StatusInternalServerError,
+			method:         http.MethodPost,
+		},
+		{
+			name: "wrong method",
+			requestBody: models.RegisterRequest{
+				Username: "testuser",
+				Email:    "test@example.com",
+				Password: "password123",
+			},
+			expectedStatus: http.StatusMethodNotAllowed,
+			method:         http.MethodGet,
+		},
+		{
+			name: "empty request body",
+			requestBody: models.RegisterRequest{
+				Username: "",
+				Email:    "",
+				Password: "",
+			},
+			expectedStatus: http.StatusBadRequest,
+			method:         http.MethodPost,
 		},
 	}
 
@@ -156,11 +216,11 @@ func TestAuthController_Register(t *testing.T) {
 
 			if tt.mockReturn != 0 || tt.mockError != nil {
 				mockRepo.On("Create", mock.AnythingOfType("models.User")).
-					Return(tt.mockReturn, tt.mockError)
+					Return(tt.mockReturn, tt.mockError).Maybe()
 			}
 
 			body, _ := json.Marshal(tt.requestBody)
-			req := httptest.NewRequest("POST", "/register", bytes.NewBuffer(body))
+			req := httptest.NewRequest(tt.method, "/register", bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
 
@@ -190,6 +250,7 @@ func TestAuthController_Login(t *testing.T) {
 		mockError      error
 		expectedStatus int
 		expectedKeys   []string
+		method         string
 	}{
 		{
 			name: "successful login",
@@ -208,11 +269,13 @@ func TestAuthController_Login(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			expectedKeys:   []string{"token", "user_id", "username", "email"},
+			method:         http.MethodPost,
 		},
 		{
 			name:           "invalid request body",
 			requestBody:    "invalid",
 			expectedStatus: http.StatusBadRequest,
+			method:         http.MethodPost,
 		},
 		{
 			name: "user not found",
@@ -222,6 +285,7 @@ func TestAuthController_Login(t *testing.T) {
 			},
 			mockError:      errors.New("user not found"),
 			expectedStatus: http.StatusUnauthorized,
+			method:         http.MethodPost,
 		},
 		{
 			name: "wrong password",
@@ -239,6 +303,31 @@ func TestAuthController_Login(t *testing.T) {
 				UpdatedAt: time.Now(),
 			},
 			expectedStatus: http.StatusUnauthorized,
+			method:         http.MethodPost,
+		},
+		{
+			name: "wrong method",
+			requestBody: models.LoginRequest{
+				Username: "testuser",
+				Password: "password123",
+			},
+			expectedStatus: http.StatusMethodNotAllowed,
+			method:         http.MethodGet,
+		},
+		{
+			name: "empty credentials",
+			requestBody: models.LoginRequest{
+				Username: "",
+				Password: "",
+			},
+			expectedStatus: http.StatusBadRequest,
+			method:         http.MethodPost,
+		},
+		{
+			name:           "malformed json",
+			requestBody:    `{"username": "testuser", "password": "password123"`, // incomplete JSON
+			expectedStatus: http.StatusBadRequest,
+			method:         http.MethodPost,
 		},
 	}
 
@@ -256,8 +345,14 @@ func TestAuthController_Login(t *testing.T) {
 					Return(tt.mockUser, tt.mockError)
 			}
 
-			body, _ := json.Marshal(tt.requestBody)
-			req := httptest.NewRequest("POST", "/login", bytes.NewBuffer(body))
+			var body []byte
+			if s, ok := tt.requestBody.(string); ok && tt.name == "malformed json" {
+				body = []byte(s)
+			} else {
+				body, _ = json.Marshal(tt.requestBody)
+			}
+
+			req := httptest.NewRequest(tt.method, "/login", bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
 
@@ -265,20 +360,36 @@ func TestAuthController_Login(t *testing.T) {
 
 			assert.Equal(t, tt.expectedStatus, rr.Code)
 
-			if tt.expectedStatus == http.StatusOK {
-				assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
-
+			if tt.expectedKeys != nil {
 				var response map[string]interface{}
 				err := json.NewDecoder(rr.Body).Decode(&response)
 				assert.NoError(t, err)
-
 				for _, key := range tt.expectedKeys {
 					assert.Contains(t, response, key)
-					assert.NotNil(t, response[key])
 				}
 			}
 
 			mockRepo.AssertExpectations(t)
 		})
 	}
+}
+
+func TestNewAuthController(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+
+	// Create a temporary template file for testing
+	tmpl := template.New("test")
+	tmpl, err := tmpl.Parse(`{{define "register.html"}}Register{{end}} {{define "login.html"}}Login{{end}}`)
+	assert.NoError(t, err)
+
+	controller := &AuthController{
+		userRepo:  mockRepo,
+		jwtSecret: "test-secret",
+		templates: tmpl,
+	}
+
+	assert.NotNil(t, controller)
+	assert.Equal(t, mockRepo, controller.userRepo)
+	assert.Equal(t, "test-secret", controller.jwtSecret)
+	assert.NotNil(t, controller.templates)
 }

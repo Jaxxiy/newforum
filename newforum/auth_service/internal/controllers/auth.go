@@ -84,6 +84,14 @@ func (c *AuthController) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate input
+	if req.Username == "" || req.Email == "" || req.Password == "" {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Username, email and password are required"))
+		return
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		w.Header().Set("Content-Type", "text/plain")
@@ -123,6 +131,14 @@ func (c *AuthController) Login(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Invalid request"))
+		return
+	}
+
+	// Validate input
+	if req.Username == "" || req.Password == "" {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Username and password are required"))
 		return
 	}
 
