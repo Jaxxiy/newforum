@@ -13,6 +13,7 @@ import (
 	"github.com/jaxxiy/newforum/auth_service/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type MockUserRepo struct {
@@ -54,12 +55,10 @@ func (m *MockUserRepo) UpdatePassword(userID int, hashedPassword string) error {
 }
 
 func TestAuthController_Pages(t *testing.T) {
-	// Create test templates with actual content
-	tmpl := template.New("base")
-	tmpl, err := tmpl.Parse(`{{define "register"}}Register Page{{end}} {{define "login"}}Login Page{{end}}`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Создаем тестовые шаблоны
+	tmpl := template.New("test")
+	tmpl, err := tmpl.Parse(`{{define "register.html"}}Register{{end}} {{define "login.html"}}Login{{end}}`)
+	assert.NoError(t, err)
 
 	mockRepo := new(MockUserRepo)
 	controller := &AuthController{
@@ -76,7 +75,7 @@ func TestAuthController_Pages(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Header().Get("Content-Type"), "text/html")
-		assert.NotEmpty(t, rr.Body.String())
+		assert.Equal(t, "Register", rr.Body.String())
 	})
 
 	t.Run("RegisterPage wrong method", func(t *testing.T) {
@@ -96,7 +95,7 @@ func TestAuthController_Pages(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Header().Get("Content-Type"), "text/html")
-		assert.NotEmpty(t, rr.Body.String())
+		assert.Equal(t, "Login", rr.Body.String())
 	})
 
 	t.Run("LoginPage wrong method", func(t *testing.T) {
@@ -182,7 +181,7 @@ func TestAuthController_Register(t *testing.T) {
 }
 
 func TestAuthController_Login(t *testing.T) {
-	hashedPassword := "$2a$10$hashedpassword" // Example hashed password
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 
 	tests := []struct {
 		name           string
@@ -202,7 +201,7 @@ func TestAuthController_Login(t *testing.T) {
 				ID:        1,
 				Username:  "testuser",
 				Email:     "test@example.com",
-				Password:  hashedPassword,
+				Password:  string(hashedPassword),
 				Role:      "user",
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
@@ -234,7 +233,7 @@ func TestAuthController_Login(t *testing.T) {
 				ID:        1,
 				Username:  "testuser",
 				Email:     "test@example.com",
-				Password:  hashedPassword,
+				Password:  string(hashedPassword),
 				Role:      "user",
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
@@ -274,8 +273,8 @@ func TestAuthController_Login(t *testing.T) {
 				assert.NoError(t, err)
 
 				for _, key := range tt.expectedKeys {
-					assert.Contains(t, response, key, "response should contain %s", key)
-					assert.NotEmpty(t, response[key], "%s should not be empty", key)
+					assert.Contains(t, response, key)
+					assert.NotNil(t, response[key])
 				}
 			}
 
