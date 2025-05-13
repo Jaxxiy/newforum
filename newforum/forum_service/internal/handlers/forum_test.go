@@ -1,18 +1,21 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jaxxiy/newforum/core/pkg/jwt"
 	"github.com/jaxxiy/newforum/forum_service/internal/mocks"
 	"github.com/jaxxiy/newforum/forum_service/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+const testSecretKey = "your-secret-key"
 
 func TestListForums(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
@@ -133,7 +136,6 @@ func TestUpdateMessage(t *testing.T) {
 	user := &models.User{Username: "User1", Role: "admin"}
 	message := &models.Message{ID: 1, ForumID: 1, Author: "User1", Content: "Message 1"}
 
-	// Убедитесь, что мок возвращает ожидаемые значения
 	mockRepo.On("GetUserByID", 1).Return(user, nil)
 	mockRepo.On("GetMessageByID", 1).Return(message, nil)
 	mockRepo.On("PutMessage", 1, "Updated Content").Return(message, nil)
@@ -144,15 +146,12 @@ func TestUpdateMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Убедитесь, что заголовок авторизации установлен правильно
-	req.Header.Set("Authorization", "Bearer valid")
-
-	// Логирование заголовков для проверки
-	for name, values := range req.Header {
-		for _, value := range values {
-			fmt.Printf("Header: %s = %s\n", name, value)
-		}
+	// Генерируем валидный токен
+	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	rr := httptest.NewRecorder()
 	router := mux.NewRouter()
@@ -178,7 +177,12 @@ func TestDeleteMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req.Header.Set("Authorization", "Bearer your-secret-key")
+	// Генерируем валидный токен
+	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	rr := httptest.NewRecorder()
 	router := mux.NewRouter()
