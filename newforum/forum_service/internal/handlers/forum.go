@@ -463,7 +463,11 @@ func UpdateForum(repo repository.ForumsRepository) http.HandlerFunc {
 func DeleteForum(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
-		id, _ := strconv.Atoi(vars["id"])
+		id, err := strconv.Atoi(vars["id"])
+		if err != nil {
+			http.Error(w, "Invalid forum ID", http.StatusBadRequest)
+			return
+		}
 
 		if err := repo.Delete(id); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
