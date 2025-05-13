@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -215,5 +216,299 @@ func TestGetMessagesAPI(t *testing.T) {
 	router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
+	mockRepo.AssertExpectations(t)
+}
+
+// TestListForumsError tests the error case for ListForums
+func TestListForumsError(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+	var nilForums []models.Forum
+	mockRepo.On("GetAll").Return(nilForums, assert.AnError)
+
+	req, err := http.NewRequest("GET", "/forums", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums", ListForums(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	mockRepo.AssertExpectations(t)
+}
+
+// TestCreateForumInvalidInput tests CreateForum with invalid input
+func TestCreateForumInvalidInput(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+	mockRepo.On("Create", mock.MatchedBy(func(forum models.Forum) bool {
+		return forum.Title == "" && forum.Description == ""
+	})).Return(0, assert.AnError)
+
+	req, err := http.NewRequest("POST", "/forums", strings.NewReader("invalid json"))
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums", CreateForum(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	mockRepo.AssertExpectations(t)
+}
+
+// TestGetForumInvalidID tests GetForum with invalid ID
+func TestGetForumInvalidID(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+
+	req, err := http.NewRequest("GET", "/forums/invalid", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{id}", GetForum(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	mockRepo.AssertNotCalled(t, "GetByID")
+}
+
+// TestGetForumNotFound tests GetForum when forum is not found
+func TestGetForumNotFound(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+	var nilForum *models.Forum
+	mockRepo.On("GetByID", 1).Return(nilForum, assert.AnError)
+
+	req, err := http.NewRequest("GET", "/forums/1", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{id}", GetForum(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+	mockRepo.AssertExpectations(t)
+}
+
+// TestGetMessagesInvalidForumID tests GetMessages with invalid forum ID
+func TestGetMessagesInvalidForumID(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+
+	req, err := http.NewRequest("GET", "/forums/invalid/messages", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{id}/messages", GetMessages(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	mockRepo.AssertNotCalled(t, "GetMessages")
+}
+
+// TestGetMessagesForumNotFound tests GetMessages when forum is not found
+func TestGetMessagesForumNotFound(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+	var nilForum *models.Forum
+	mockRepo.On("GetByID", 1).Return(nilForum, assert.AnError)
+
+	req, err := http.NewRequest("GET", "/forums/1/messages", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{id}/messages", GetMessages(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+	mockRepo.AssertExpectations(t)
+}
+
+// TestUpdateMessageUnauthorized tests UpdateMessage without authorization
+func TestUpdateMessageUnauthorized(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+
+	reqBody := `{"content":"Updated Content"}`
+	req, err := http.NewRequest("PUT", "/forums/1/messages/1", strings.NewReader(reqBody))
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{forum_id}/messages/{message_id}", UpdateMessage(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	mockRepo.AssertNotCalled(t, "PutMessage")
+}
+
+// TestUpdateMessageInvalidID tests UpdateMessage with invalid message ID
+func TestUpdateMessageInvalidID(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+
+	reqBody := `{"content":"Updated Content"}`
+	req, err := http.NewRequest("PUT", "/forums/1/messages/invalid", strings.NewReader(reqBody))
+	assert.NoError(t, err)
+
+	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
+	assert.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{forum_id}/messages/{message_id}", UpdateMessage(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	mockRepo.AssertNotCalled(t, "PutMessage")
+}
+
+// TestUpdateMessageForbidden tests UpdateMessage with unauthorized user
+func TestUpdateMessageForbidden(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+	user := &models.User{Username: "User2", Role: "user"}
+	message := &models.Message{ID: 1, ForumID: 1, Author: "User1", Content: "Message 1"}
+
+	mockRepo.On("GetUserByID", 1).Return(user, nil)
+	mockRepo.On("GetMessageByID", 1).Return(message, nil)
+
+	reqBody := `{"content":"Updated Content"}`
+	req, err := http.NewRequest("PUT", "/forums/1/messages/1", strings.NewReader(reqBody))
+	assert.NoError(t, err)
+
+	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
+	assert.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{forum_id}/messages/{message_id}", UpdateMessage(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+	mockRepo.AssertNotCalled(t, "PutMessage")
+}
+
+// TestDeleteMessageUnauthorized tests DeleteMessage without authorization
+func TestDeleteMessageUnauthorized(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+
+	req, err := http.NewRequest("DELETE", "/forums/1/messages/1", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{forum_id}/messages/{message_id}", DeleteMessage(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	mockRepo.AssertNotCalled(t, "DeleteMessage")
+}
+
+// TestDeleteMessageInvalidID tests DeleteMessage with invalid message ID
+func TestDeleteMessageInvalidID(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+
+	req, err := http.NewRequest("DELETE", "/forums/1/messages/invalid", nil)
+	assert.NoError(t, err)
+
+	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
+	assert.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{forum_id}/messages/{message_id}", DeleteMessage(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	mockRepo.AssertNotCalled(t, "DeleteMessage")
+}
+
+// TestDeleteMessageForbidden tests DeleteMessage with unauthorized user
+func TestDeleteMessageForbidden(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+	user := &models.User{Username: "User2", Role: "user"}
+	message := &models.Message{ID: 1, ForumID: 1, Author: "User1", Content: "Message 1"}
+
+	mockRepo.On("GetUserByID", 1).Return(user, nil)
+	mockRepo.On("GetMessageByID", 1).Return(message, nil)
+
+	req, err := http.NewRequest("DELETE", "/forums/1/messages/1", nil)
+	assert.NoError(t, err)
+
+	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
+	assert.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{forum_id}/messages/{message_id}", DeleteMessage(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+	mockRepo.AssertNotCalled(t, "DeleteMessage")
+}
+
+// TestGetMessagesAPIInvalidForumID tests GetMessagesAPI with invalid forum ID
+func TestGetMessagesAPIInvalidForumID(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+
+	req, err := http.NewRequest("GET", "/forums/invalid/messages-list", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{id}/messages-list", GetMessagesAPI(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	mockRepo.AssertNotCalled(t, "GetMessages")
+}
+
+// TestGetMessagesAPIWithAuth tests GetMessagesAPI with authentication
+func TestGetMessagesAPIWithAuth(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+	messages := []models.Message{
+		{ID: 1, ForumID: 1, Author: "User1", Content: "Message 1"},
+		{ID: 2, ForumID: 1, Author: "User2", Content: "Message 2"},
+	}
+
+	mockRepo.On("GetMessages", 1).Return(messages, nil)
+
+	req, err := http.NewRequest("GET", "/forums/1/messages-list", nil)
+	assert.NoError(t, err)
+
+	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
+	assert.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{id}/messages-list", GetMessagesAPI(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response map[string]interface{}
+	err = json.NewDecoder(rr.Body).Decode(&response)
+	assert.NoError(t, err)
+	assert.Contains(t, response, "messages")
+	assert.Contains(t, response, "currentUser")
+	assert.Contains(t, response, "currentRole")
+
 	mockRepo.AssertExpectations(t)
 }
