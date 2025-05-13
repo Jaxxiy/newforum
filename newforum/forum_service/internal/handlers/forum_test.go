@@ -512,3 +512,207 @@ func TestGetMessagesAPIWithAuth(t *testing.T) {
 
 	mockRepo.AssertExpectations(t)
 }
+
+func TestHandleGlobalChatMessageEmptyFields(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+
+	reqBody := `{"username":"","text":""}`
+	req, err := http.NewRequest("POST", "/global-chat", strings.NewReader(reqBody))
+	assert.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/global-chat", handleGlobalChatMessage(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	mockRepo.AssertNotCalled(t, "CreateGlobalMessage")
+}
+
+func TestHandleGlobalChatMessageInvalidJSON(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+
+	req, err := http.NewRequest("POST", "/global-chat", strings.NewReader("invalid json"))
+	assert.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/global-chat", handleGlobalChatMessage(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	mockRepo.AssertNotCalled(t, "CreateGlobalMessage")
+}
+
+func TestHandleGlobalChatMessageInvalidContentType(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+
+	reqBody := `{"username":"User1","text":"Test Message"}`
+	req, err := http.NewRequest("POST", "/global-chat", strings.NewReader(reqBody))
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/global-chat", handleGlobalChatMessage(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	mockRepo.AssertNotCalled(t, "CreateGlobalMessage")
+}
+
+/*
+func TestHandleGlobalChatMessage(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+	mockRepo.On("CreateGlobalMessage", mock.AnythingOfType("models.GlobalMessage")).Return(1, nil)
+
+	reqBody := `{"username":"User1","text":"Test Message"}`
+	req, err := http.NewRequest("POST", "/global-chat", strings.NewReader(reqBody))
+	assert.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/global-chat", handleGlobalChatMessage(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+	mockRepo.AssertExpectations(t)
+}
+*/
+
+func TestRegisterPage(t *testing.T) {
+	req, err := http.NewRequest("GET", "/auth/register", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/auth/register", RegisterPage)
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestGetAllForums(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+	forums := []models.Forum{
+		{ID: 1, Title: "Forum 1", Description: "Description 1"},
+		{ID: 2, Title: "Forum 2", Description: "Description 2"},
+	}
+
+	mockRepo.On("GetAll").Return(forums, nil)
+
+	req, err := http.NewRequest("GET", "/forums/all", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/all", GetAllForums(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	mockRepo.AssertExpectations(t)
+}
+
+// TestLoginPage tests the login page handler
+func TestLoginPage(t *testing.T) {
+	req, err := http.NewRequest("GET", "/auth/login", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/auth/login", LoginPage)
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestPostMessageInvalidJSON(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+
+	req, err := http.NewRequest("POST", "/forums/1/messages", strings.NewReader("invalid json"))
+	assert.NoError(t, err)
+
+	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
+	assert.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{id}/messages", PostMessage(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	mockRepo.AssertNotCalled(t, "CreateMessage")
+}
+
+// TestNewForumForm tests the form for creating a new forum
+func TestNewForumForm(t *testing.T) {
+	req, err := http.NewRequest("GET", "/forums/new", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/new", NewForumForm())
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestPostMessageInvalidContentType(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+
+	reqBody := `{"author":"User1","content":"Test Message"}`
+	req, err := http.NewRequest("POST", "/forums/1/messages", strings.NewReader(reqBody))
+	assert.NoError(t, err)
+
+	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
+	assert.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{id}/messages", PostMessage(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	mockRepo.AssertNotCalled(t, "CreateMessage")
+}
+
+func TestPostMessage(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+	user := &models.User{Username: "User1", Role: "user"}
+
+	mockRepo.On("GetUserByID", 1).Return(user, nil)
+	mockRepo.On("CreateMessage", mock.AnythingOfType("models.Message")).Return(1, nil)
+
+	reqBody := `{"author":"User1","content":"Test Message"}`
+	req, err := http.NewRequest("POST", "/forums/1/messages", strings.NewReader(reqBody))
+	assert.NoError(t, err)
+
+	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
+	assert.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{id}/messages", PostMessage(mockRepo))
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+	mockRepo.AssertExpectations(t)
+}
