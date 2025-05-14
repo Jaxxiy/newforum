@@ -31,23 +31,19 @@ func NewAuthService(userRepo repository.UserRepository) *AuthService {
 }
 
 func (s *AuthService) Register(req models.RegisterRequest) (*models.AuthResponse, error) {
-	// Check if username already exists
 	if _, err := s.userRepo.GetByUsername(req.Username); err == nil {
 		return nil, errors.New("username already exists")
 	}
 
-	// Check if email already exists
 	if _, err := s.userRepo.GetByEmail(req.Email); err == nil {
 		return nil, errors.New("email already exists")
 	}
 
-	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create user
 	user := models.User{
 		Username:  req.Username,
 		Email:     req.Email,
@@ -63,7 +59,6 @@ func (s *AuthService) Register(req models.RegisterRequest) (*models.AuthResponse
 	}
 	user.ID = userID
 
-	// Generate JWT token
 	token, err := s.generateToken(user)
 	if err != nil {
 		return nil, err
@@ -76,7 +71,6 @@ func (s *AuthService) Register(req models.RegisterRequest) (*models.AuthResponse
 }
 
 func (s *AuthService) Login(req models.LoginRequest) (*models.AuthResponse, error) {
-	// Get user by username
 	user, err := s.userRepo.GetByUsername(req.Username)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -85,13 +79,11 @@ func (s *AuthService) Login(req models.LoginRequest) (*models.AuthResponse, erro
 		return nil, err
 	}
 
-	// Check password
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
 	if err != nil {
 		return nil, errors.New("invalid username or password")
 	}
 
-	// Generate JWT token
 	token, err := s.generateToken(*user)
 	if err != nil {
 		return nil, err
@@ -133,5 +125,3 @@ func (s *AuthService) generateToken(user models.User) (string, error) {
 func (s *AuthService) GetUserByID(userID int) (*models.User, error) {
 	return s.userRepo.GetUserByID(userID)
 }
-
-//s

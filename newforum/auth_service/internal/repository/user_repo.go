@@ -145,7 +145,7 @@ func (r *UserRepo) UpdatePassword(userID int, hashedPassword string) error {
 	}
 
 	if rowsAffected == 0 {
-		return errors.New("user not found") // Explicitly return "user not found" error
+		return errors.New("user not found")
 	}
 
 	return nil

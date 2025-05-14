@@ -30,7 +30,6 @@
 
             if (response.ok) {
                 document.getElementById('message').value = '';
-                // Refresh messages
                 loadMessages();
             } else {
                 alert('Failed to send message');
@@ -53,7 +52,6 @@
             
             if (response.ok) {
                 const messages = await response.json();
-                // Update messages display
                 updateMessagesDisplay(messages);
             }
         } catch (error) {

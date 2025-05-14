@@ -55,7 +55,6 @@ func (m *MockUserRepo) UpdatePassword(userID int, hashedPassword string) error {
 }
 
 func TestAuthController_Pages(t *testing.T) {
-	// Создаем тестовые шаблоны
 	tmpl := template.New("test")
 	tmpl, err := tmpl.Parse(`{{define "register.html"}}Register{{end}} {{define "login.html"}}Login{{end}}`)
 	assert.NoError(t, err)
@@ -377,7 +376,6 @@ func TestAuthController_Login(t *testing.T) {
 func TestNewAuthController(t *testing.T) {
 	mockRepo := new(MockUserRepo)
 
-	// Create a temporary template file for testing
 	tmpl := template.New("test")
 	tmpl, err := tmpl.Parse(`{{define "register.html"}}Register{{end}} {{define "login.html"}}Login{{end}}`)
 	assert.NoError(t, err)

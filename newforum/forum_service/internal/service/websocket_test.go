@@ -63,8 +63,11 @@ func TestWebSocketConnection(t *testing.T) {
 	require.NoError(t, err)
 	defer ws.Close()
 
+	// Wait for handlers to be ready
+	<-ready
+
 	// Give the server time to process the connection
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Verify client was added
 	mu.RLock()
@@ -126,8 +129,11 @@ func TestGlobalWebSocketConnection(t *testing.T) {
 	require.NoError(t, err)
 	defer ws.Close()
 
+	// Wait for handlers to be ready
+	<-ready
+
 	// Give the server time to process the connection
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Verify client was added
 	globalMu.RLock()
@@ -186,8 +192,11 @@ func TestWebSocketClientDisconnection(t *testing.T) {
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 
+	// Wait for handlers to be ready
+	<-ready
+
 	// Give the server time to process the connection
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Verify client was added
 	mu.RLock()
@@ -198,7 +207,7 @@ func TestWebSocketClientDisconnection(t *testing.T) {
 	ws.Close()
 
 	// Wait for cleanup
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Verify client was removed
 	mu.RLock()
@@ -219,8 +228,11 @@ func TestGlobalWebSocketClientDisconnection(t *testing.T) {
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 
+	// Wait for handlers to be ready
+	<-ready
+
 	// Give the server time to process the connection
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Verify client was added
 	globalMu.RLock()
@@ -231,7 +243,7 @@ func TestGlobalWebSocketClientDisconnection(t *testing.T) {
 	ws.Close()
 
 	// Wait for cleanup
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Verify client was removed
 	globalMu.RLock()

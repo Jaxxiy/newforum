@@ -215,7 +215,6 @@
     
 
     <script>
-        // === ФОРУМ ===
         let ws;
         const config = {
             authService: 'http://localhost:3000',
@@ -223,7 +222,6 @@
         };
 
         document.addEventListener('DOMContentLoaded', async function() {
-            // --- Форум ---
             const forumId = document.getElementById('forum-data').dataset.forumId;
             const messagesContainer = document.getElementById('messages');
             const messageForm = document.getElementById('message-form');
@@ -281,7 +279,6 @@
                 const messageElement = document.createElement('div');
                 messageElement.className = 'message';
                 messageElement.dataset.messageId = message.id;
-                // admin может всё, обычный пользователь — только свои
                 const isAuthor = message.author === currentUser;
                 const isAdmin = currentRole === 'admin';
                 const canEdit = isAuthor || isAdmin;
@@ -455,7 +452,6 @@
                 return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
             }
 
-            // Отправка сообщения в форум
             messageForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 if (!token || !username) {
@@ -492,7 +488,6 @@
                 }
             });
 
-            // WebSocket для форума
             function connectWebSocket() {
                 const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
                 const wsHost = config.forumService.replace(/^http:\/\//, '').replace(/^https:\/\//, '');
@@ -521,7 +516,6 @@
             await loadMessages();
             connectWebSocket();
 
-            // === МИНИ-ЧАТ ===
             const chatContainer = document.getElementById('mini-chat');
             const chatMessages = document.getElementById('chat-messages');
             const chatInput = document.getElementById('chat-message');

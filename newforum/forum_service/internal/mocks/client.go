@@ -16,7 +16,6 @@ type MockAuthClient struct {
 func (m *MockAuthClient) GetUserByToken(ctx context.Context, token string) (*proto.UserResponse, error) {
 	args := m.Called(ctx, token)
 
-	// Обработка gRPC статусных ошибок
 	if args.Get(0) == nil {
 		if err := args.Error(1); err != nil {
 			if s, ok := status.FromError(err); ok {
@@ -27,14 +26,12 @@ func (m *MockAuthClient) GetUserByToken(ctx context.Context, token string) (*pro
 		return nil, status.Error(codes.NotFound, "token not found")
 	}
 
-	// Проверка типа возвращаемого значения
 	if resp, ok := args.Get(0).(*proto.UserResponse); ok {
 		return resp, args.Error(1)
 	}
 	return nil, status.Error(codes.Internal, "invalid response type")
 }
 
-// Хелперы для настройки мока
 func (m *MockAuthClient) SetupSuccess(token string, userID int32, role string) {
 	m.On("GetUserByToken", mock.Anything, token).Return(
 		&proto.UserResponse{

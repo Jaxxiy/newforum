@@ -30,10 +30,8 @@ type Server struct {
 func NewServer() *Server {
 	r := mux.NewRouter()
 
-	// Строка подключения к базе данных
 	dsn := "postgres://postgres:Stas2005101010!@localhost:5432/forum?sslmode=disable"
 
-	// Создаем подключение к базе
 	db, err := repository.NewPostgres(dsn)
 	if err != nil {
 		log.Fatalf("Не удалось подключиться к базе данных: %v", err)
@@ -45,8 +43,8 @@ func NewServer() *Server {
 	//}
 
 	//m, err := migrate.NewWithDatabaseInstance(
-	//	"file://../../migrations", // путь к папке с миграциями
-	//	"forum",                   // имя БД
+	//	"file://../../migrations",
+	//	"forum",
 	//	driver,
 	//)
 
@@ -59,10 +57,8 @@ func NewServer() *Server {
 	//	log.Fatalf("Ошибка применения миграций: %v", err)
 	//}
 
-	// Создаем репозиторий форумов
-	forumRepo := repository.NewForumsRepo(db.DB) // предполагается, что db.DB это *sql.DB
+	forumRepo := repository.NewForumsRepo(db.DB)
 
-	// Регистрация API-хендлеров с передачей репозитория
 	handlers.RegisterForumHandlers(r, forumRepo)
 
 	r.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("C:/Users/Soulless/Desktop/myforum/cmd/frontend/"))))
@@ -72,7 +68,6 @@ func NewServer() *Server {
 		Handler: r,
 	}
 
-	// Запуск WebSocket
 	go service.StartWebSocket()
 
 	return &Server{
@@ -85,7 +80,6 @@ func (s *Server) Run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// HTTP
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()

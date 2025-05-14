@@ -66,7 +66,6 @@ func StartGRPCServer(authService *service.AuthService, port string) error {
 
 	server := NewServer(authService)
 
-	// Настройка keepalive
 	keepaliveParams := keepalive.ServerParameters{
 		MaxConnectionIdle:     5 * time.Minute,
 		MaxConnectionAge:      10 * time.Minute,

@@ -2,13 +2,17 @@ package handlers
 
 import (
 	"encoding/json"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	"github.com/jaxxiy/newforum/core/pkg/jwt"
 	"github.com/jaxxiy/newforum/forum_service/internal/mocks"
 	"github.com/jaxxiy/newforum/forum_service/internal/models"
@@ -586,19 +590,6 @@ func TestHandleGlobalChatMessage(t *testing.T) {
 }
 */
 
-func TestRegisterPage(t *testing.T) {
-	req, err := http.NewRequest("GET", "/auth/register", nil)
-	assert.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	router := mux.NewRouter()
-	router.HandleFunc("/auth/register", RegisterPage)
-
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
 func TestGetAllForums(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	forums := []models.Forum{
@@ -622,18 +613,6 @@ func TestGetAllForums(t *testing.T) {
 }
 
 // TestLoginPage tests the login page handler
-func TestLoginPage(t *testing.T) {
-	req, err := http.NewRequest("GET", "/auth/login", nil)
-	assert.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	router := mux.NewRouter()
-	router.HandleFunc("/auth/login", LoginPage)
-
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
 
 func TestPostMessageInvalidJSON(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
@@ -654,20 +633,6 @@ func TestPostMessageInvalidJSON(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	mockRepo.AssertNotCalled(t, "CreateMessage")
-}
-
-// TestNewForumForm tests the form for creating a new forum
-func TestNewForumForm(t *testing.T) {
-	req, err := http.NewRequest("GET", "/forums/new", nil)
-	assert.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	router := mux.NewRouter()
-	router.HandleFunc("/forums/new", NewForumForm())
-
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
 func TestPostMessageInvalidContentType(t *testing.T) {
@@ -1340,4 +1305,232 @@ func TestGetMessagesAPIWithExpiredToken(t *testing.T) {
 	assert.Equal(t, "", response["currentUser"])
 	assert.Equal(t, "", response["currentRole"])
 	mockRepo.AssertExpectations(t)
+}
+
+func TestServeWebSocket(t *testing.T) {
+	// Создаем тестовый сервер
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := map[string]string{"forum_id": "1"}
+		r = mux.SetURLVars(r, vars)
+		serveWebSocket(w, r)
+	}))
+	defer ts.Close()
+
+	// Конвертируем http:// в ws://
+	u := "ws" + strings.TrimPrefix(ts.URL, "http")
+
+	// Подключаемся к WebSocket
+	ws, _, err := websocket.DefaultDialer.Dial(u, nil)
+	if err != nil {
+		t.Fatalf("could not open a ws connection: %v", err)
+	}
+	defer ws.Close()
+
+	// Проверяем, что клиент зарегистрирован
+	clientsMu.RLock()
+	defer clientsMu.RUnlock()
+	if len(clients[1]) != 1 {
+		t.Errorf("expected 1 client, got %d", len(clients[1]))
+	}
+}
+
+func TestBroadcastToForum(t *testing.T) {
+	// Создаем тестовый сервер
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := map[string]string{"forum_id": "1"}
+		r = mux.SetURLVars(r, vars)
+		serveWebSocket(w, r)
+	}))
+	defer ts.Close()
+
+	// Конвертируем http:// в ws://
+	u := "ws" + strings.TrimPrefix(ts.URL, "http")
+
+	// Подключаемся к WebSocket
+	ws, _, err := websocket.DefaultDialer.Dial(u, nil)
+	if err != nil {
+		t.Fatalf("could not open a ws connection: %v", err)
+	}
+	defer ws.Close()
+
+	// Отправляем тестовое сообщение
+	testMsg := WSMessage{Type: "test", Payload: "test payload"}
+	broadcastToForum(1, testMsg)
+
+	// Читаем сообщение
+	_, msg, err := ws.ReadMessage()
+	if err != nil {
+		t.Fatalf("could not read message: %v", err)
+	}
+
+	var receivedMsg WSMessage
+	if err := json.Unmarshal(msg, &receivedMsg); err != nil {
+		t.Fatalf("could not unmarshal message: %v", err)
+	}
+
+	if receivedMsg.Type != testMsg.Type {
+		t.Errorf("expected message type %s, got %s", testMsg.Type, receivedMsg.Type)
+	}
+}
+
+func TestServeGlobalChat(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+	mockRepo.On("GetGlobalChatHistory", 100).Return([]models.GlobalMessage{}, nil)
+
+	// Создаем тестовый сервер
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serveGlobalChat(w, r, mockRepo)
+	}))
+	defer ts.Close()
+
+	// Конвертируем http:// в ws://
+	u := "ws" + strings.TrimPrefix(ts.URL, "http")
+
+	// Подключаемся к WebSocket
+	ws, _, err := websocket.DefaultDialer.Dial(u, nil)
+	if err != nil {
+		t.Fatalf("could not open a ws connection: %v", err)
+	}
+	defer ws.Close()
+
+	// Проверяем, что клиент зарегистрирован
+	globalChatMu.RLock()
+	defer globalChatMu.RUnlock()
+	if len(globalChatClients) != 1 {
+		t.Errorf("expected 1 client, got %d", len(globalChatClients))
+	}
+}
+
+func TestHandleGlobalChatMessage(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+	mockRepo.On("CreateGlobalMessage", mock.Anything).Return(1, nil)
+
+	handler := handleGlobalChatMessage(mockRepo)
+
+	// Тест с валидным запросом
+
+	// Тест с невалидным JSON
+	t.Run("InvalidJSON", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/global-chat", strings.NewReader("{invalid}"))
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	// Тест с пустыми полями
+	t.Run("EmptyFields", func(t *testing.T) {
+		reqBody := `{"username":"","text":""}`
+		req := httptest.NewRequest("POST", "/global-chat", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+}
+
+func TestRenderTemplate(t *testing.T) {
+	// Создаем временный шаблон
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test.html")
+	err := os.WriteFile(tmpFile, []byte("{{.Test}}"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Переопределяем templates
+	oldTemplates := templates
+	defer func() { templates = oldTemplates }()
+	templates = template.Must(template.ParseGlob(filepath.Join(tmpDir, "*.html")))
+
+	rr := httptest.NewRecorder()
+	renderTemplate(rr, "test.html", map[string]string{"Test": "Hello"})
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "Hello", rr.Body.String())
+}
+
+func TestRenderTemplateError(t *testing.T) {
+	rr := httptest.NewRecorder()
+	renderTemplate(rr, "nonexistent.html", nil)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestLoginPage(t *testing.T) {
+	req := httptest.NewRequest("GET", "/auth/login", nil)
+	rr := httptest.NewRecorder()
+
+	LoginPage(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "<html")
+}
+
+func TestRegisterPage(t *testing.T) {
+	req := httptest.NewRequest("GET", "/auth/register", nil)
+	rr := httptest.NewRecorder()
+
+	RegisterPage(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "<html")
+}
+
+func TestNewForumForm(t *testing.T) {
+	req := httptest.NewRequest("GET", "/forums/new", nil)
+	rr := httptest.NewRecorder()
+
+	handler := NewForumForm()
+	handler(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "<html")
+}
+
+func TestPostMessageWebSocketIntegration(t *testing.T) {
+	mockRepo := new(mocks.MockForumsRepo)
+	user := &models.User{Username: "test", Role: "user"}
+	mockRepo.On("GetUserByID", mock.Anything).Return(user, nil)
+	mockRepo.On("CreateMessage", mock.Anything).Return(1, nil)
+
+	// Создаем тестовый сервер для WebSocket
+	wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := map[string]string{"forum_id": "1"}
+		r = mux.SetURLVars(r, vars)
+		serveWebSocket(w, r)
+	}))
+	defer wsServer.Close()
+
+	// Подключаемся к WebSocket
+	wsURL := "ws" + strings.TrimPrefix(wsServer.URL, "http")
+	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("could not open a ws connection: %v", err)
+	}
+	defer ws.Close()
+
+	// Создаем тестовый HTTP сервер для POST запроса
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{id}/messages", PostMessage(mockRepo))
+
+	// Отправляем POST запрос
+	reqBody := `{"author":"test","content":"hello"}`
+	req := httptest.NewRequest("POST", "/forums/1/messages", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer valid-token")
+
+	// Устанавливаем переменные маршрутизации
+	vars := map[string]string{"id": "1"}
+	req = mux.SetURLVars(req, vars)
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+
 }

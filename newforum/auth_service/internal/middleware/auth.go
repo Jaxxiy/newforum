@@ -24,9 +24,8 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Добавляем user_id в контекст
 			ctx := context.WithValue(r.Context(), "user_id", claims.UserID)
 			next.ServeHTTP(w, r.WithContext(ctx))
-		}) // Была пропущена закрывающая скобка для HandlerFunc
-	} // Была пропущена закрывающая скобка для возвращаемой функции
+		})
+	}
 }

@@ -68,27 +68,22 @@
                     
                     if (data.token) {
                         try {
-                            // Clear storage
                             console.log('Clearing storage...');
                             localStorage.clear();
                             sessionStorage.clear();
                             
-                            // Save token and user info
                             console.log('Saving token and user info...');
                             localStorage.setItem('jwt', data.token);
                             localStorage.setItem('username', data.user.username);
                             localStorage.setItem('user_id', data.user.id);
                             
-                            // Verify storage
                             console.log('Verifying storage...');
                             console.log('Saved token:', localStorage.getItem('jwt'));
                             console.log('Saved username:', localStorage.getItem('username'));
                             console.log('Saved user_id:', localStorage.getItem('user_id'));
                             
-                            // Log all storage contents
                             console.log('localStorage contents:', Object.fromEntries(Object.entries(localStorage)));
                             
-                            // Redirect after a delay
                             setTimeout(() => {
                                 console.log('Before redirect - localStorage contents:', Object.fromEntries(Object.entries(localStorage)));
                                 window.location.replace('/api/forums');

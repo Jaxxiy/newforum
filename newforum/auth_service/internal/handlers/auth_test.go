@@ -84,13 +84,13 @@ func TestAuthHandler_Register(t *testing.T) {
 
 			if tt.expectBody {
 				if tt.mockError != nil {
-					// Проверка ошибки
+
 					var resp map[string]string
 					err := json.NewDecoder(rr.Body).Decode(&resp)
 					assert.NoError(t, err)
 					assert.Equal(t, tt.mockError.Error(), resp["error"])
 				} else {
-					// Проверка успешного ответа
+
 					var resp models.AuthResponse
 					err := json.NewDecoder(rr.Body).Decode(&resp)
 					assert.NoError(t, err)

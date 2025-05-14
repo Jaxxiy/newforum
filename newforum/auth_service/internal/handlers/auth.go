@@ -105,7 +105,6 @@ func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract token from "Bearer <token>"
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || parts[0] != "Bearer" {
 		http.Error(w, "Invalid authorization header", http.StatusUnauthorized)

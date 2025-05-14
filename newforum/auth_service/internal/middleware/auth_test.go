@@ -15,9 +15,7 @@ func TestAuthMiddleware(t *testing.T) {
 	secret := "test-secret"
 	middleware := AuthMiddleware(secret)
 
-	// Create a simple test handler
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check if user_id was properly set in context
 		userID := r.Context().Value("user_id")
 		if userID != nil {
 			w.WriteHeader(http.StatusOK)
@@ -28,7 +26,6 @@ func TestAuthMiddleware(t *testing.T) {
 		}
 	})
 
-	// Generate a valid token for testing
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": float64(1), // JWT converts numbers to float64
 		"exp":     time.Now().Add(time.Hour).Unix(),
@@ -36,7 +33,6 @@ func TestAuthMiddleware(t *testing.T) {
 	validToken, err := token.SignedString([]byte(secret))
 	assert.NoError(t, err)
 
-	// Generate an expired token
 	expiredToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": float64(1),
 		"exp":     time.Now().Add(-time.Hour).Unix(), // expired 1 hour ago
@@ -126,7 +122,6 @@ func TestAuthMiddleware_Integration(t *testing.T) {
 	secret := "test-secret"
 	middleware := AuthMiddleware(secret)
 
-	// Create a test handler that checks context values
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userID := r.Context().Value("user_id")
 		if userID == nil {
@@ -135,7 +130,6 @@ func TestAuthMiddleware_Integration(t *testing.T) {
 			return
 		}
 
-		// Check if userID is the expected value, handling both int and float64 types
 		var id int
 		switch v := userID.(type) {
 		case int:
@@ -157,7 +151,6 @@ func TestAuthMiddleware_Integration(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// Create a valid token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": float64(1),
 		"exp":     time.Now().Add(time.Hour).Unix(),
@@ -165,7 +158,6 @@ func TestAuthMiddleware_Integration(t *testing.T) {
 	validToken, err := token.SignedString([]byte(secret))
 	assert.NoError(t, err)
 
-	// Test the complete middleware chain
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("Authorization", "Bearer "+validToken)
 	rr := httptest.NewRecorder()
@@ -180,13 +172,10 @@ func TestAuthMiddleware_ContextPropagation(t *testing.T) {
 	secret := "test-secret"
 	middleware := AuthMiddleware(secret)
 
-	// Create a handler chain that tests context propagation
 	parentHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Add a value to the context
 		ctx := context.WithValue(r.Context(), "parent_key", "parent_value")
 		r = r.WithContext(ctx)
 		middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Check if both parent context value and middleware context value are present
 			parentValue := r.Context().Value("parent_key")
 			userID := r.Context().Value("user_id")
 			if parentValue != "parent_value" || userID == nil {
@@ -197,7 +186,6 @@ func TestAuthMiddleware_ContextPropagation(t *testing.T) {
 		})).ServeHTTP(w, r)
 	})
 
-	// Create a valid token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": float64(1),
 		"exp":     time.Now().Add(time.Hour).Unix(),
@@ -205,7 +193,6 @@ func TestAuthMiddleware_ContextPropagation(t *testing.T) {
 	validToken, err := token.SignedString([]byte(secret))
 	assert.NoError(t, err)
 
-	// Test the context propagation
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("Authorization", "Bearer "+validToken)
 	rr := httptest.NewRecorder()

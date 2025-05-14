@@ -12,7 +12,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// MockUserRepo implements repository.UserRepository
 type MockUserRepo struct {
 	mock.Mock
 }
@@ -154,7 +153,6 @@ func TestAuthService_Login(t *testing.T) {
 	mockRepo := &MockUserRepo{}
 	service := NewAuthService(mockRepo)
 
-	// Create a test user with properly hashed password
 	password := "password123"
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	assert.NoError(t, err)
@@ -259,7 +257,6 @@ func TestAuthService_ValidateToken(t *testing.T) {
 		UpdatedAt: time.Now(),
 	}
 
-	// Generate a valid token
 	token, err := service.generateToken(*testUser)
 	assert.NoError(t, err)
 

@@ -124,28 +124,23 @@
         }
     </style>
     <script>
-        // Add token verification on page load
         document.addEventListener('DOMContentLoaded', function() {
-            // Try to get token from localStorage or sessionStorage
             let token = localStorage.getItem('jwt');
             if (!token) {
                 token = sessionStorage.getItem('jwt');
                 if (token) {
-                    // Restore token to localStorage if found in sessionStorage
                     localStorage.setItem('jwt', token);
                 }
             }
             
             console.log('Current token on forums page:', token);
             
-            // Initialize chat components
             const chatContainer = document.getElementById('mini-chat');
             const chatMessages = document.getElementById('chat-messages');
             const chatInput = document.getElementById('chat-message');
             const sendButton = document.getElementById('send-message');
             const toggleButton = document.getElementById('toggle-chat');
 
-            // Only check token when trying to send a message
             async function sendMessage() {
                 const token = localStorage.getItem('jwt');
                 console.log('Token when sending message:', token);
@@ -190,13 +185,10 @@
                 }
             }
 
-            // Замените 'YOUR_API_ENDPOINT' на реальный URL вашего API
             const apiEndpoint = '/api/global-chat';
 
-            // Замените 'username' реальным именем пользователя (полученным, например, из куки или глобальной переменной)
-            const username = localStorage.getItem('username') || 'Guest'; // Или получи его откуда-нибудь: 
+            const username = localStorage.getItem('username') || 'Guest'; 
 
-            // Подключение WebSocket
             const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
             const ws = new WebSocket(`${protocol}${window.location.host}/ws/global`);
 
@@ -208,7 +200,6 @@
                 console.log('WebSocket disconnected', event);
             };
 
-            // Обработчик сообщений WebSocket
             ws.onmessage = function(event) {
                 console.log("qweqweqw")
                 const data = JSON.parse(event.data);
@@ -229,7 +220,6 @@
             function formatMessageTimestamp(timestamp) {
                 const date = new Date(timestamp);
                 
-                // Получаем компоненты даты
                 const year = date.getFullYear();
                 const month = String(date.getMonth() + 1).padStart(2, '0');
                 const day = String(date.getDate()).padStart(2, '0');
@@ -239,22 +229,19 @@
                 return `${year}-${month}-${day} ${hours}:${minutes}`;
             }
 
-            // Обработчики событий
             sendButton.addEventListener('click', sendMessage);
             chatInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
-                    e.preventDefault(); // Предотвращаем перенос строки в поле ввода
+                    e.preventDefault(); 
                     sendMessage();
                 }
             });
 
-            // Сворачивание/разворачивание чата
             toggleButton.addEventListener('click', function() {
                 chatContainer.classList.toggle('chat-collapsed');
                 toggleButton.textContent = chatContainer.classList.contains('chat-collapsed') ? '+' : '−';
             });
 
-            // Экранирование HTML
             function escapeHtml(text) {
                 return text
                     .replace(/&/g, '&amp;')
