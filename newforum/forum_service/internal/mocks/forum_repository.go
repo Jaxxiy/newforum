@@ -12,11 +12,17 @@ type MockForumsRepo struct {
 
 func (m *MockForumsRepo) GetAll() ([]models.Forum, error) {
 	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).([]models.Forum), args.Error(1)
 }
 
 func (m *MockForumsRepo) GetByID(id int) (*models.Forum, error) {
 	args := m.Called(id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*models.Forum), args.Error(1)
 }
 
@@ -37,6 +43,9 @@ func (m *MockForumsRepo) Delete(id int) error {
 
 func (m *MockForumsRepo) GetMessages(forumID int) ([]models.Message, error) {
 	args := m.Called(forumID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).([]models.Message), args.Error(1)
 }
 
@@ -47,11 +56,17 @@ func (m *MockForumsRepo) CreateMessage(msg models.Message) (int, error) {
 
 func (m *MockForumsRepo) GetMessageByID(id int) (*models.Message, error) {
 	args := m.Called(id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*models.Message), args.Error(1)
 }
 
 func (m *MockForumsRepo) PutMessage(id int, content string) (*models.Message, error) {
 	args := m.Called(id, content)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*models.Message), args.Error(1)
 }
 
@@ -67,6 +82,9 @@ func (m *MockForumsRepo) CreateGlobalMessage(msg models.GlobalMessage) (int, err
 
 func (m *MockForumsRepo) GetGlobalChatHistory(limit int) ([]models.GlobalMessage, error) {
 	args := m.Called(limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).([]models.GlobalMessage), args.Error(1)
 }
 
