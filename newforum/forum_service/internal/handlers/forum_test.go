@@ -569,27 +569,6 @@ func TestHandleGlobalChatMessageInvalidContentType(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "CreateGlobalMessage")
 }
 
-/*
-func TestHandleGlobalChatMessage(t *testing.T) {
-	mockRepo := new(mocks.MockForumsRepo)
-	mockRepo.On("CreateGlobalMessage", mock.AnythingOfType("models.GlobalMessage")).Return(1, nil)
-
-	reqBody := `{"username":"User1","text":"Test Message"}`
-	req, err := http.NewRequest("POST", "/global-chat", strings.NewReader(reqBody))
-	assert.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-
-	rr := httptest.NewRecorder()
-	router := mux.NewRouter()
-	router.HandleFunc("/global-chat", handleGlobalChatMessage(mockRepo))
-
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusCreated, rr.Code)
-	mockRepo.AssertExpectations(t)
-}
-*/
-
 func TestGetAllForums(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	forums := []models.Forum{
@@ -1060,10 +1039,10 @@ func TestHandleGlobalChatMessageSuccess(t *testing.T) {
 
 	reqBody := `{"username":"User1","text":"Test Message"}`
 	req, err := http.NewRequest("POST", "/global-chat", strings.NewReader(reqBody))
-	assert.NoError(t, err)
+		assert.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
-	rr := httptest.NewRecorder()
+		rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(handleGlobalChatMessage(mockRepo))
 	handler.ServeHTTP(rr, req)
 
@@ -1324,13 +1303,36 @@ func TestServeWebSocket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not open a ws connection: %v", err)
 	}
-	defer ws.Close()
+
+	// Даем время на регистрацию клиента
+	time.Sleep(100 * time.Millisecond)
 
 	// Проверяем, что клиент зарегистрирован
 	clientsMu.RLock()
-	defer clientsMu.RUnlock()
-	if len(clients[1]) != 1 {
-		t.Errorf("expected 1 client, got %d", len(clients[1]))
+	clientCount := len(clients[1])
+	clientsMu.RUnlock()
+
+	if clientCount != 1 {
+		t.Errorf("expected 1 client, got %d", clientCount)
+	}
+
+	// Корректно закрываем соединение
+	err = ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	if err != nil {
+		t.Logf("error sending close message: %v", err)
+	}
+	ws.Close()
+
+	// Даем время на удаление клиента
+	time.Sleep(100 * time.Millisecond)
+
+	// Проверяем, что клиент удален
+	clientsMu.RLock()
+	clientCount = len(clients[1])
+	clientsMu.RUnlock()
+
+	if clientCount != 0 {
+		t.Errorf("expected 0 clients after close, got %d", clientCount)
 	}
 }
 
@@ -1351,13 +1353,16 @@ func TestBroadcastToForum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not open a ws connection: %v", err)
 	}
-	defer ws.Close()
+
+	// Даем время на регистрацию клиента
+	time.Sleep(100 * time.Millisecond)
 
 	// Отправляем тестовое сообщение
 	testMsg := WSMessage{Type: "test", Payload: "test payload"}
 	broadcastToForum(1, testMsg)
 
-	// Читаем сообщение
+	// Читаем сообщение с таймаутом
+	ws.SetReadDeadline(time.Now().Add(time.Second))
 	_, msg, err := ws.ReadMessage()
 	if err != nil {
 		t.Fatalf("could not read message: %v", err)
@@ -1371,6 +1376,13 @@ func TestBroadcastToForum(t *testing.T) {
 	if receivedMsg.Type != testMsg.Type {
 		t.Errorf("expected message type %s, got %s", testMsg.Type, receivedMsg.Type)
 	}
+
+	// Корректно закрываем соединение
+	err = ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	if err != nil {
+		t.Logf("error sending close message: %v", err)
+	}
+	ws.Close()
 }
 
 func TestServeGlobalChat(t *testing.T) {
@@ -1391,46 +1403,111 @@ func TestServeGlobalChat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not open a ws connection: %v", err)
 	}
-	defer ws.Close()
+
+	// Даем время на регистрацию клиента
+	time.Sleep(100 * time.Millisecond)
 
 	// Проверяем, что клиент зарегистрирован
 	globalChatMu.RLock()
-	defer globalChatMu.RUnlock()
-	if len(globalChatClients) != 1 {
-		t.Errorf("expected 1 client, got %d", len(globalChatClients))
+	clientCount := len(globalChatClients)
+	globalChatMu.RUnlock()
+
+	if clientCount != 1 {
+		t.Errorf("expected 1 client, got %d", clientCount)
 	}
+
+	// Отправляем тестовое сообщение
+	testMsg := GlobalChatMessage{
+		Author:    "test",
+		Content:   "test message",
+		CreatedAt: time.Now(),
+	}
+	err = ws.WriteJSON(testMsg)
+	if err != nil {
+		t.Fatalf("could not send message: %v", err)
+	}
+
+	// Корректно закрываем соединение
+	err = ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	if err != nil {
+		t.Logf("error sending close message: %v", err)
+	}
+	ws.Close()
+
+	mockRepo.AssertExpectations(t)
 }
 
-func TestHandleGlobalChatMessage(t *testing.T) {
+func TestPostMessageWebSocketIntegration(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
-	mockRepo.On("CreateGlobalMessage", mock.Anything).Return(1, nil)
+	user := &models.User{Username: "test", Role: "user"}
+	mockRepo.On("GetUserByID", mock.Anything).Return(user, nil)
+	mockRepo.On("CreateMessage", mock.Anything).Return(1, nil)
 
-	handler := handleGlobalChatMessage(mockRepo)
+	// Создаем тестовый сервер для WebSocket
+	wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := map[string]string{"forum_id": "1"}
+		r = mux.SetURLVars(r, vars)
+		serveWebSocket(w, r)
+	}))
+	defer wsServer.Close()
 
-	// Тест с валидным запросом
+	// Подключаемся к WebSocket
+	wsURL := "ws" + strings.TrimPrefix(wsServer.URL, "http")
+	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("could not open a ws connection: %v", err)
+	}
 
-	// Тест с невалидным JSON
-	t.Run("InvalidJSON", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/global-chat", strings.NewReader("{invalid}"))
-		req.Header.Set("Content-Type", "application/json")
+	// Даем время на регистрацию клиента
+	time.Sleep(100 * time.Millisecond)
 
-		rr := httptest.NewRecorder()
-		handler(rr, req)
+	// Создаем тестовый HTTP сервер для POST запроса
+	router := mux.NewRouter()
+	router.HandleFunc("/forums/{id}/messages", PostMessage(mockRepo))
 
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
-	})
+	// Генерируем валидный токен
+	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
+	if err != nil {
+		t.Fatalf("could not generate token: %v", err)
+	}
 
-	// Тест с пустыми полями
-	t.Run("EmptyFields", func(t *testing.T) {
-		reqBody := `{"username":"","text":""}`
-		req := httptest.NewRequest("POST", "/global-chat", strings.NewReader(reqBody))
-		req.Header.Set("Content-Type", "application/json")
+	// Отправляем POST запрос
+	reqBody := `{"author":"test","content":"hello"}`
+	req := httptest.NewRequest("POST", "/forums/1/messages", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 
-		rr := httptest.NewRecorder()
-		handler(rr, req)
+	// Устанавливаем переменные маршрутизации
+	vars := map[string]string{"id": "1"}
+	req = mux.SetURLVars(req, vars)
 
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
-	})
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+
+	// Читаем сообщение с таймаутом
+	ws.SetReadDeadline(time.Now().Add(time.Second))
+	_, msg, err := ws.ReadMessage()
+	if err != nil {
+		t.Fatalf("could not read message: %v", err)
+	}
+
+	var wsMsg WSMessage
+	if err := json.Unmarshal(msg, &wsMsg); err != nil {
+		t.Fatalf("could not unmarshal message: %v", err)
+	}
+
+	assert.Equal(t, "message_created", wsMsg.Type)
+
+	// Корректно закрываем соединение
+	err = ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	if err != nil {
+		t.Logf("error sending close message: %v", err)
+	}
+	ws.Close()
+
+	mockRepo.AssertExpectations(t)
 }
 
 func TestRenderTemplate(t *testing.T) {
@@ -1490,47 +1567,4 @@ func TestNewForumForm(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), "<html")
-}
-
-func TestPostMessageWebSocketIntegration(t *testing.T) {
-	mockRepo := new(mocks.MockForumsRepo)
-	user := &models.User{Username: "test", Role: "user"}
-	mockRepo.On("GetUserByID", mock.Anything).Return(user, nil)
-	mockRepo.On("CreateMessage", mock.Anything).Return(1, nil)
-
-	// Создаем тестовый сервер для WebSocket
-	wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		vars := map[string]string{"forum_id": "1"}
-		r = mux.SetURLVars(r, vars)
-		serveWebSocket(w, r)
-	}))
-	defer wsServer.Close()
-
-	// Подключаемся к WebSocket
-	wsURL := "ws" + strings.TrimPrefix(wsServer.URL, "http")
-	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	if err != nil {
-		t.Fatalf("could not open a ws connection: %v", err)
-	}
-	defer ws.Close()
-
-	// Создаем тестовый HTTP сервер для POST запроса
-	router := mux.NewRouter()
-	router.HandleFunc("/forums/{id}/messages", PostMessage(mockRepo))
-
-	// Отправляем POST запрос
-	reqBody := `{"author":"test","content":"hello"}`
-	req := httptest.NewRequest("POST", "/forums/1/messages", strings.NewReader(reqBody))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer valid-token")
-
-	// Устанавливаем переменные маршрутизации
-	vars := map[string]string{"id": "1"}
-	req = mux.SetURLVars(req, vars)
-
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusCreated, rr.Code)
-
 }

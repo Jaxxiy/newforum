@@ -7,40 +7,129 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestInitLogger(t *testing.T) {
+func TestLoggerInitialization(t *testing.T) {
 	// Reset logger before test
-	Logger = nil
+	logger = nil
 
-	// Test initialization
-	InitLogger()
+	// Initialize logger
+	log := InitLogger()
+	assert.NotNil(t, log)
 
-	// Verify logger was created
-	assert.NotNil(t, Logger, "Logger should not be nil after initialization")
-	assert.IsType(t, &zap.Logger{}, Logger, "Logger should be of type *zap.Logger")
-}
-
-func TestGetLogger(t *testing.T) {
-	// Reset and initialize logger
-	Logger = nil
-	InitLogger()
-
-	// Test getting logger
-	logger := GetLogger()
-
-	// Verify returned logger
-	assert.NotNil(t, logger, "GetLogger should not return nil")
-	assert.Equal(t, Logger, logger, "GetLogger should return the initialized logger")
+	// Check if it's a production logger
+	assert.IsType(t, &zap.Logger{}, log)
 }
 
 func TestLoggerSingleton(t *testing.T) {
-	// Reset and initialize logger
-	Logger = nil
-	InitLogger()
+	// Reset logger before test
+	logger = nil
 
-	// Get logger multiple times
-	logger1 := GetLogger()
-	logger2 := GetLogger()
+	// Get logger twice
+	log1 := GetLogger()
+	log2 := GetLogger()
 
-	// Verify same instance is returned
-	assert.Equal(t, logger1, logger2, "Multiple calls to GetLogger should return the same instance")
+	// Should be the same instance
+	assert.Same(t, log1, log2)
+}
+
+func TestLoggerMethods(t *testing.T) {
+	// Reset logger before test
+	logger = nil
+
+	// Initialize logger first
+	log := InitLogger()
+	assert.NotNil(t, log)
+
+	// Test logging methods
+	assert.NotPanics(t, func() {
+		log.Info("test info message")
+		log.Error("test error message")
+		log.Debug("test debug message")
+		log.Warn("test warning message")
+	})
+}
+
+func TestLoggerWithFields(t *testing.T) {
+	// Reset logger before test
+	logger = nil
+
+	// Initialize logger first
+	log := InitLogger()
+	assert.NotNil(t, log)
+
+	// Test logging with fields
+	assert.NotPanics(t, func() {
+		log.With(
+			zap.String("key1", "value1"),
+			zap.Int("key2", 123),
+		).Info("test message with fields")
+	})
+}
+
+func TestLoggerDevelopmentMode(t *testing.T) {
+	// Reset logger before test
+	logger = nil
+
+	// Set development mode
+	SetDevelopmentMode(true)
+	defer SetDevelopmentMode(false)
+
+	// Initialize logger
+	log := InitLogger()
+	assert.NotNil(t, log)
+
+	// Test development mode specific features
+	assert.NotPanics(t, func() {
+		log.Debug("debug message should be enabled in development mode")
+	})
+}
+
+func TestLoggerProductionMode(t *testing.T) {
+	// Reset logger before test
+	logger = nil
+
+	// Ensure production mode
+	SetDevelopmentMode(false)
+
+	// Initialize logger
+	log := InitLogger()
+	assert.NotNil(t, log)
+
+	// Test production mode specific features
+	assert.NotPanics(t, func() {
+		log.Info("info message in production mode")
+	})
+}
+
+func TestLoggerWithContext(t *testing.T) {
+	// Reset logger before test
+	logger = nil
+
+	// Initialize logger first
+	log := InitLogger()
+	assert.NotNil(t, log)
+
+	// Test logging with context
+	assert.NotPanics(t, func() {
+		log.With(
+			zap.String("request_id", "123"),
+			zap.String("user_id", "456"),
+		).Info("test message with context")
+	})
+}
+
+func TestLoggerErrorHandling(t *testing.T) {
+	// Reset logger before test
+	logger = nil
+
+	// Initialize logger first
+	log := InitLogger()
+	assert.NotNil(t, log)
+
+	// Test error logging
+	assert.NotPanics(t, func() {
+		log.Error("test error",
+			zap.Error(assert.AnError),
+			zap.String("additional_info", "test info"),
+		)
+	})
 }
