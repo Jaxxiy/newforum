@@ -36,7 +36,6 @@ func NewForumsRepo(db *sql.DB) *ForumsRepo {
 
 func (r *ForumsRepo) Create(f models.Forum) (int, error) {
 	var id int
-	// Явно указываем, что created_at должен использовать значение по умолчанию
 	err := r.DB.QueryRow(`
         INSERT INTO forums (name, description, created_at)
         VALUES ($1, $2, DEFAULT)
@@ -79,7 +78,6 @@ func (r *ForumsRepo) GetByID(id int) (*models.Forum, error) {
 	return &forum, nil
 }
 
-// Аналогичные методы для Update и Delete
 func (r *ForumsRepo) Update(id int, f models.Forum) error {
 	result, err := r.DB.Exec(
 		`UPDATE forums SET name = $1, description = $2 WHERE id = $3`,
@@ -96,7 +94,6 @@ func (r *ForumsRepo) Update(id int, f models.Forum) error {
 	return nil
 }
 
-// Delete (новый метод)
 func (r *ForumsRepo) Delete(id int) error {
 	result, err := r.DB.Exec(
 		`DELETE FROM forums WHERE id = $1`,
@@ -113,10 +110,7 @@ func (r *ForumsRepo) Delete(id int) error {
 	return nil
 }
 
-//Сообщения
-
 func (r *ForumsRepo) CreateMessage(msg models.Message) (int, error) {
-	// 1. Проверяем существование форума (исправленный запрос)
 	var exists bool
 	fmt.Println(msg.ForumID)
 	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM forums WHERE id = $1)", msg.ForumID).Scan(&exists)
@@ -127,7 +121,6 @@ func (r *ForumsRepo) CreateMessage(msg models.Message) (int, error) {
 		return 0, fmt.Errorf("forum with ID %d not found", msg.ForumID)
 	}
 
-	// 2. Вставляем сообщение (исправленный запрос)
 	var id int
 	err = r.DB.QueryRow(
 		"INSERT INTO messages (forum_id, author, content, created_at) VALUES ($1, $2, $3, $4) RETURNING id",
@@ -163,7 +156,6 @@ func (r *ForumsRepo) GetMessages(forumID int) ([]models.Message, error) {
 	return messages, nil
 }
 
-// DeleteMessage удаляет сообщение по ID
 func (r *ForumsRepo) DeleteMessage(id int) error {
 	_, err := r.DB.Exec("DELETE FROM messages WHERE id = $1", id)
 	return err
@@ -172,7 +164,6 @@ func (r *ForumsRepo) DeleteMessage(id int) error {
 func (r *ForumsRepo) PutMessage(messageID int, updatedContent string) (*models.Message, error) {
 	var updatedMessage models.Message
 
-	// Выполняем SQL-запрос для обновления сообщения
 	err := r.DB.QueryRow(`
         UPDATE messages 
         SET content = $1
@@ -211,7 +202,6 @@ func (r *ForumsRepo) CreateGlobalMessage(msg models.GlobalMessage) (int, error) 
 	return id, nil
 }
 
-// GetGlobalMessages возвращает последние сообщения из мини-чата
 func (r *ForumsRepo) GetGlobalMessages(limit int) ([]models.GlobalMessage, error) {
 	rows, err := r.DB.Query(`
 		SELECT id, author, message, created_at
@@ -235,7 +225,6 @@ func (r *ForumsRepo) GetGlobalMessages(limit int) ([]models.GlobalMessage, error
 	return messages, nil
 }
 
-// DeleteGlobalMessage удаляет сообщение из мини-чата по ID
 func (r *ForumsRepo) DeleteGlobalMessage(id int) error {
 	_, err := r.DB.Exec("DELETE FROM chat_messages WHERE id = $1", id)
 	if err != nil {

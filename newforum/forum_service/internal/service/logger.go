@@ -12,14 +12,11 @@ var (
 	isDev  bool
 )
 
-// SetDevelopmentMode sets whether the logger should be in development mode
 func SetDevelopmentMode(dev bool) {
 	isDev = dev
-	// Reset logger so it will be recreated with new mode
 	logger = nil
 }
 
-// InitLogger initializes the logger
 func InitLogger() *zap.Logger {
 	var err error
 	var log *zap.Logger
@@ -37,7 +34,6 @@ func InitLogger() *zap.Logger {
 	return log
 }
 
-// GetLogger returns the singleton logger instance
 func GetLogger() *zap.Logger {
 	once.Do(func() {
 		logger = InitLogger()

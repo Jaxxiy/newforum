@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// MockForumRepo is a mock implementation of repository.ForumsRepository
 type MockForumRepo struct {
 	mock.Mock
 }

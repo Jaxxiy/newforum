@@ -25,10 +25,10 @@ var (
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
-			return true // Для разработки
+			return true
 		},
 	}
-	clients   = make(map[int]map[*websocket.Conn]bool) // forumID -> connections
+	clients   = make(map[int]map[*websocket.Conn]bool)
 	clientsMu sync.RWMutex
 
 	//mini-chat
@@ -38,7 +38,7 @@ var (
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
-			return true // Для разработки
+			return true
 		},
 	}
 	globalChatBroadcast = make(chan GlobalChatMessage)
@@ -84,7 +84,6 @@ func RegisterForumHandlers(r *mux.Router, repo repository.ForumsRepository) {
 
 	api := r.PathPrefix("/api").Subrouter()
 
-	// Auth page routes
 	r.HandleFunc("/auth/login", LoginPage).Methods("GET")
 	r.HandleFunc("/auth/register", RegisterPage).Methods("GET")
 
@@ -95,7 +94,6 @@ func RegisterForumHandlers(r *mux.Router, repo repository.ForumsRepository) {
 	api.HandleFunc("/forums/{id:[0-9]+}", UpdateForum(repo)).Methods("PUT")
 	api.HandleFunc("/forums/{id:[0-9]+}", DeleteForum(repo)).Methods("DELETE")
 
-	// Обработчики сообщений
 	api.HandleFunc("/forums/{id:[0-9]+}/messages", GetMessages(repo)).Methods("GET")
 	api.HandleFunc("/forums/{id:[0-9]+}/messages", PostMessage(repo)).Methods("POST")
 	api.HandleFunc("/forums/{forum_id:[0-9]+}/messages/{message_id:[0-9]+}", DeleteMessage(repo)).Methods("DELETE")
@@ -103,7 +101,6 @@ func RegisterForumHandlers(r *mux.Router, repo repository.ForumsRepository) {
 
 	api.HandleFunc("/global-chat", handleGlobalChatMessage(repo)).Methods("POST")
 
-	// Новый API-эндпоинт для загрузки сообщений с учетом токена
 	api.HandleFunc("/forums/{id:[0-9]+}/messages-list", GetMessagesAPI(repo)).Methods("GET")
 
 }
@@ -116,7 +113,6 @@ func RegisterPage(w http.ResponseWriter, r *http.Request) {
 	templates.ExecuteTemplate(w, "register.html", nil)
 }
 
-// Улучшенный обработчик WebSocket
 func serveWebSocket(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	forumID, err := strconv.Atoi(vars["forum_id"])
@@ -137,13 +133,11 @@ func serveWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	registerClient(forumID, conn)
 
-	// Настройка keep-alive
 	conn.SetPongHandler(func(string) error {
 		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
 
-	// Чтение сообщений (для поддержания соединения)
 	for {
 		_, _, err := conn.ReadMessage()
 		if err != nil {
@@ -155,7 +149,6 @@ func serveWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Отправка сообщения всем клиентам форума
 func broadcastToForum(forumID int, message WSMessage) {
 	clientsMu.RLock()
 	defer clientsMu.RUnlock()
@@ -201,12 +194,10 @@ func unregisterClient(forumID int, conn *websocket.Conn) {
 	}
 }
 
-// Улучшенный обработчик сообщений
 func PostMessage(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		// Получаем forumID из URL
 		vars := mux.Vars(r)
 		forumID, err := strconv.Atoi(vars["id"])
 		if err != nil {
@@ -214,13 +205,11 @@ func PostMessage(repo repository.ForumsRepository) http.HandlerFunc {
 			return
 		}
 
-		// Проверяем Content-Type
 		if !strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 			sendError(w, http.StatusBadRequest, "Content-Type must be application/json")
 			return
 		}
 
-		// Декодируем JSON
 		var req struct {
 			Author  string `json:"author"`
 			Content string `json:"content"`
@@ -230,13 +219,11 @@ func PostMessage(repo repository.ForumsRepository) http.HandlerFunc {
 			return
 		}
 
-		// Валидация
 		if strings.TrimSpace(req.Author) == "" || strings.TrimSpace(req.Content) == "" {
 			sendError(w, http.StatusBadRequest, "Author and content are required")
 			return
 		}
 
-		// Получаем пользователя из токена
 		authHeader := r.Header.Get("Authorization")
 		var user *models.User
 		if authHeader != "" {
@@ -252,13 +239,11 @@ func PostMessage(repo repository.ForumsRepository) http.HandlerFunc {
 			return
 		}
 
-		// Проверяем права: автор или admin
 		if user.Username != req.Author && user.Role != "admin" {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 
-		// Создаем сообщение
 		msg := models.Message{
 			ForumID:   forumID,
 			Author:    req.Author,
@@ -268,7 +253,6 @@ func PostMessage(repo repository.ForumsRepository) http.HandlerFunc {
 
 		fmt.Println(msg.CreatedAt)
 
-		// Сохраняем в БД
 		id, err := repo.CreateMessage(msg)
 		if err != nil {
 			log.Printf("DB error: %v", err)
@@ -277,13 +261,11 @@ func PostMessage(repo repository.ForumsRepository) http.HandlerFunc {
 		}
 		msg.ID = id
 
-		// Отправляем через WebSocket
 		go broadcastToForum(forumID, WSMessage{
 			Type:    "message_created",
 			Payload: msg,
 		})
 
-		// Успешный ответ
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(msg)
 	}
@@ -294,7 +276,6 @@ func sendError(w http.ResponseWriter, status int, message string) {
 	json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
 
-// sendWSMessage отправляет сообщение всем клиентам в указанном форуме
 func sendWSMessage(forumID int, message WSMessage) {
 	clientsMu.RLock()
 	defer clientsMu.RUnlock()
@@ -364,7 +345,6 @@ func CreateForum(repo repository.ForumsRepository) http.HandlerFunc {
 		}
 		forum.ID = id
 
-		// Отправляем уведомление через WebSocket
 		sendWSMessage(id, WSMessage{
 			Type: "forum_created",
 			Payload: map[string]interface{}{
@@ -408,7 +388,6 @@ func GetForum(repo repository.ForumsRepository) http.HandlerFunc {
 	}
 }
 
-// GetAllForums возвращает все форумы
 func GetAllForums(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		forums, err := repo.GetAll()
@@ -496,21 +475,18 @@ func GetMessages(repo repository.ForumsRepository) http.HandlerFunc {
 			return
 		}
 
-		// Получаем форум
 		forum, err := repo.GetByID(forumID)
 		if err != nil {
 			http.Error(w, "Forum not found", http.StatusNotFound)
 			return
 		}
 
-		// Получаем сообщения
 		messages, err := repo.GetMessages(forumID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// Получаем текущего пользователя и роль из JWT токена
 		authHeader := r.Header.Get("Authorization")
 		var currentUser, currentRole string
 		if authHeader != "" {
@@ -523,7 +499,6 @@ func GetMessages(repo repository.ForumsRepository) http.HandlerFunc {
 			}
 		}
 
-		// Рендерим шаблон (если нужно использовать роль в шаблоне)
 		data := struct {
 			Forum       *models.Forum
 			Messages    []models.Message
@@ -555,7 +530,6 @@ func GetMessages(repo repository.ForumsRepository) http.HandlerFunc {
 // @Router /forums/{forum_id}/messages/{message_id} [put]
 func UpdateMessage(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Извлекаем ID сообщения из URL
 		vars := mux.Vars(r)
 		messageID, err := strconv.Atoi(vars["message_id"])
 		fmt.Println(messageID)
@@ -564,7 +538,6 @@ func UpdateMessage(repo repository.ForumsRepository) http.HandlerFunc {
 			return
 		}
 
-		// Парсим тело запроса
 		var request struct {
 			Content string `json:"content"`
 		}
@@ -573,7 +546,6 @@ func UpdateMessage(repo repository.ForumsRepository) http.HandlerFunc {
 			return
 		}
 
-		// Получаем пользователя из токена
 		authHeader := r.Header.Get("Authorization")
 		var user *models.User
 		if authHeader != "" {
@@ -589,27 +561,23 @@ func UpdateMessage(repo repository.ForumsRepository) http.HandlerFunc {
 			return
 		}
 
-		// Получаем сообщение
 		msg, err := repo.GetMessageByID(messageID)
 		if err != nil {
 			http.Error(w, "Message not found", http.StatusNotFound)
 			return
 		}
 
-		// Проверяем права: автор или admin
 		if user.Username != msg.Author && user.Role != "admin" {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 
-		// Обновляем сообщение в репозитории
 		updatedMessage, err := repo.PutMessage(messageID, request.Content)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// Возвращаем обновленное сообщение
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(updatedMessage)
 	}
@@ -635,7 +603,6 @@ func DeleteMessage(repo repository.ForumsRepository) http.HandlerFunc {
 			return
 		}
 
-		// Получаем пользователя из токена
 		authHeader := r.Header.Get("Authorization")
 		var user *models.User
 		if authHeader != "" {
@@ -651,14 +618,12 @@ func DeleteMessage(repo repository.ForumsRepository) http.HandlerFunc {
 			return
 		}
 
-		// Получаем сообщение
 		msg, err := repo.GetMessageByID(messageID)
 		if err != nil {
 			http.Error(w, "Message not found", http.StatusNotFound)
 			return
 		}
 
-		// Проверяем права: автор или admin
 		if user.Username != msg.Author && user.Role != "admin" {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
@@ -698,17 +663,14 @@ func serveGlobalChat(w http.ResponseWriter, r *http.Request, repo repository.For
 		conn.Close()
 	}()
 
-	// Регистрация клиента
 	globalChatMu.Lock()
 	globalChatClients[conn] = true
 	globalChatMu.Unlock()
 
-	// Загрузка истории из БД (последние 100 сообщений)
 	history, err := repo.GetGlobalChatHistory(100)
 	if err != nil {
 		log.Printf("Ошибка загрузки истории чата: %v", err)
 	} else {
-		// Конвертируем в GlobalChatMessage и отправляем
 		for _, msg := range history {
 			chatMsg := GlobalChatMessage{
 				Author:    msg.Author,
@@ -722,7 +684,6 @@ func serveGlobalChat(w http.ResponseWriter, r *http.Request, repo repository.For
 		}
 	}
 
-	// Чтение новых сообщений
 	for {
 		var msg GlobalChatMessage
 		if err := conn.ReadJSON(&msg); err != nil {
@@ -732,7 +693,6 @@ func serveGlobalChat(w http.ResponseWriter, r *http.Request, repo repository.For
 			break
 		}
 
-		// Сохраняем в БД через репозиторий
 		_, err := repo.CreateGlobalMessage(models.GlobalMessage{
 			Author:    msg.Author,
 			Content:   msg.Content,
@@ -742,7 +702,6 @@ func serveGlobalChat(w http.ResponseWriter, r *http.Request, repo repository.For
 			log.Printf("Ошибка сохранения сообщения: %v", err)
 		}
 
-		// Рассылка всем клиентам
 		globalChatBroadcast <- msg
 	}
 }
@@ -752,13 +711,11 @@ func handleGlobalChatMessages() {
 		msg := <-globalChatBroadcast
 		globalChatMu.Lock()
 
-		// Обновляем историю в памяти (опционально)
 		globalChatHistory = append(globalChatHistory, msg)
 		if len(globalChatHistory) > 100 {
 			globalChatHistory = globalChatHistory[1:]
 		}
 
-		// Рассылка
 		for client := range globalChatClients {
 			if err := client.WriteJSON(msg); err != nil {
 				log.Printf("Ошибка отправки: %v", err)
@@ -770,18 +727,15 @@ func handleGlobalChatMessages() {
 	}
 }
 
-// Обработчик POST-запроса для глобального чата
 func handleGlobalChatMessage(repo repository.ForumsRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		// 1. Проверяем Content-Type
 		if !strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 			http.Error(w, `{"error": "Content-Type must be application/json"}`, http.StatusBadRequest)
 			return
 		}
 
-		// 2. Парсим JSON
 		var req GlobalChatMessageRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, `{"error": "Invalid JSON format"}`, http.StatusBadRequest)
@@ -789,20 +743,17 @@ func handleGlobalChatMessage(repo repository.ForumsRepository) http.HandlerFunc 
 		}
 		defer r.Body.Close()
 
-		// 3. Валидация
 		if strings.TrimSpace(req.Author) == "" || strings.TrimSpace(req.Content) == "" {
 			http.Error(w, `{"error": "Username and text are required"}`, http.StatusBadRequest)
 			return
 		}
 
-		// 4. Создаем структуру models.GlobalMessage для сохранения в БД
 		msgmodels := models.GlobalMessage{
 			Author:    req.Author,
 			Content:   req.Content,
 			CreatedAt: time.Now(),
 		}
 
-		// 5. Сохраняем в БД
 		id, err := repo.CreateGlobalMessage(msgmodels)
 		if err != nil {
 			log.Printf("DB error: %v", err)
@@ -810,7 +761,6 @@ func handleGlobalChatMessage(repo repository.ForumsRepository) http.HandlerFunc 
 			return
 		}
 
-		// 6. Создаем структуру GlobalChatMessage для отправки в WebSocket
 		msgWebSocket := GlobalChatMessage{
 			Author:    req.Author,
 			Content:   req.Content,
@@ -818,10 +768,8 @@ func handleGlobalChatMessage(repo repository.ForumsRepository) http.HandlerFunc 
 		}
 		log.Printf("Sending message %v to websocket", msgWebSocket)
 
-		// 7. Отправляем в WebSocket
 		globalChatBroadcast <- msgWebSocket
 
-		// 8. Успешный ответ
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":        id,
@@ -860,7 +808,6 @@ func GetMessagesAPI(repo repository.ForumsRepository) http.HandlerFunc {
 			return
 		}
 
-		// Безопасная проверка токена
 		var currentUser, currentRole string
 		if authHeader := r.Header.Get("Authorization"); authHeader != "" {
 			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
@@ -868,7 +815,6 @@ func GetMessagesAPI(repo repository.ForumsRepository) http.HandlerFunc {
 				user, err := authClient.GetUserByToken(ctx, tokenString)
 				if err != nil {
 					log.Printf("Error getting user by token: %v", err)
-					// Продолжаем выполнение без информации о пользователе
 				} else if user != nil {
 					currentUser = user.Username
 					currentRole = user.Role

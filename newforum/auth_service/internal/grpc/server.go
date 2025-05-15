@@ -81,7 +81,6 @@ func StartGRPCServer(authService *service.AuthService, port string) error {
 	pb.RegisterAuthServiceServer(grpcServer, server)
 	server.grpcServer = grpcServer
 
-	log.Printf("Starting gRPC server on port %s", port)
 	return grpcServer.Serve(lis)
 }
 

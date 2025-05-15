@@ -15,10 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Глобальная история сообщений для тестов
 var globalHistory = make([]string, 0)
 
-// Обработчик клиентского соединения для тестов
 func handleClient(conn *websocket.Conn) {
 	defer conn.Close()
 
@@ -34,10 +32,8 @@ func handleClient(conn *websocket.Conn) {
 }
 
 func setupTest(t *testing.T) *sync.WaitGroup {
-	// Enable test mode
 	setTestMode(true)
 
-	// Reset global state
 	mu.Lock()
 	clients = make(map[*websocket.Conn]bool)
 	mu.Unlock()
@@ -47,7 +43,6 @@ func setupTest(t *testing.T) *sync.WaitGroup {
 	globalHistory = make([]string, 0)
 	globalMu.Unlock()
 
-	// Start message handlers
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
@@ -64,7 +59,7 @@ func setupTest(t *testing.T) *sync.WaitGroup {
 
 func teardownTest(t *testing.T, wg *sync.WaitGroup) {
 	cleanupTest()
-	wg.Wait() // Wait for handlers to finish
+	wg.Wait()
 	setTestMode(false)
 }
 
@@ -72,11 +67,9 @@ func TestWebSocketMessageBroadcast(t *testing.T) {
 	wg := setupTest(t)
 	defer teardownTest(t, wg)
 
-	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(handleConnections))
 	defer server.Close()
 
-	// Connect two clients
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 
 	ws1, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
@@ -87,18 +80,14 @@ func TestWebSocketMessageBroadcast(t *testing.T) {
 	require.NoError(t, err)
 	defer ws2.Close()
 
-	// Give the server time to process the connections
 	time.Sleep(50 * time.Millisecond)
 
-	// Send message from first client
 	testMsg := "Hello, World!"
 	err = ws1.WriteMessage(websocket.TextMessage, []byte(testMsg))
 	require.NoError(t, err)
 
-	// Wait for message to be broadcast
 	time.Sleep(50 * time.Millisecond)
 
-	// Read message from second client
 	_, msg, err := ws2.ReadMessage()
 	require.NoError(t, err)
 	assert.Equal(t, testMsg, string(msg))
@@ -108,11 +97,9 @@ func TestGlobalWebSocketMessageBroadcast(t *testing.T) {
 	wg := setupTest(t)
 	defer teardownTest(t, wg)
 
-	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(handleGlobalConnections))
 	defer server.Close()
 
-	// Connect two clients
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 
 	ws1, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
@@ -123,18 +110,14 @@ func TestGlobalWebSocketMessageBroadcast(t *testing.T) {
 	require.NoError(t, err)
 	defer ws2.Close()
 
-	// Give the server time to process the connections
 	time.Sleep(50 * time.Millisecond)
 
-	// Send message from first client
 	testMsg := "Hello, Global!"
 	err = ws1.WriteMessage(websocket.TextMessage, []byte(testMsg))
 	require.NoError(t, err)
 
-	// Wait for message to be broadcast
 	time.Sleep(50 * time.Millisecond)
 
-	// Read message from second client
 	_, msg, err := ws2.ReadMessage()
 	require.NoError(t, err)
 	assert.Equal(t, testMsg, string(msg))
@@ -144,13 +127,11 @@ func TestWebSocketConnectionError(t *testing.T) {
 	wg := setupTest(t)
 	defer teardownTest(t, wg)
 
-	// Create server that rejects WebSocket connections
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 	}))
 	defer server.Close()
 
-	// Try to connect
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	_, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.Error(t, err, "Expected connection error")
@@ -167,10 +148,8 @@ func TestWebSocketReadError(t *testing.T) {
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 
-	// Закрываем соединение для создания ошибки чтения
 	ws.Close()
 
-	// Даем время обработчику обнаружить закрытие
 	time.Sleep(50 * time.Millisecond)
 
 	mu.Lock()
@@ -190,11 +169,9 @@ func TestInvalidWebSocketMessage(t *testing.T) {
 	require.NoError(t, err)
 	defer ws.Close()
 
-	// Отправляем бинарное сообщение вместо текстового
 	err = ws.WriteMessage(websocket.BinaryMessage, []byte{0x01, 0x02, 0x03})
 	require.NoError(t, err)
 
-	// Проверяем, что соединение не разорвано
 	err = ws.WriteMessage(websocket.TextMessage, []byte("ping"))
 	require.NoError(t, err)
 }
@@ -215,12 +192,10 @@ func TestLargeMessage(t *testing.T) {
 	require.NoError(t, err)
 	defer ws2.Close()
 
-	// Генерируем большое сообщение (100KB)
 	largeMsg := strings.Repeat("a", 100*1024)
 	err = ws1.WriteMessage(websocket.TextMessage, []byte(largeMsg))
 	require.NoError(t, err)
 
-	// Проверяем получение
 	_, msg, err := ws2.ReadMessage()
 	require.NoError(t, err)
 	assert.Equal(t, largeMsg, string(msg))
@@ -229,17 +204,14 @@ func TestLargeMessage(t *testing.T) {
 func TestServerShutdownWithActiveConnections(t *testing.T) {
 	wg := setupTest(t)
 
-	// Create a channel to coordinate shutdown
 	done := make(chan struct{})
 
 	server := httptest.NewServer(http.HandlerFunc(handleConnections))
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 
-	// Create active connection
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 
-	// Start a goroutine to read messages
 	go func() {
 		defer close(done)
 		for {
@@ -250,23 +222,18 @@ func TestServerShutdownWithActiveConnections(t *testing.T) {
 		}
 	}()
 
-	// Give time for connection to establish
 	time.Sleep(50 * time.Millisecond)
 
-	// Close server and cleanup
 	server.Close()
 	teardownTest(t, wg)
 
-	// Force close the connection
 	ws.WriteControl(websocket.CloseMessage,
 		websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
 		time.Now().Add(time.Second))
 	ws.Close()
 
-	// Wait for read loop to detect closure
 	<-done
 
-	// Try to write to closed connection
 	err = ws.WriteMessage(websocket.TextMessage, []byte("test"))
 	require.Error(t, err, "Expected error writing to closed connection")
 }
@@ -283,7 +250,6 @@ func TestPingPong(t *testing.T) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		require.NoError(t, err)
 
-		// Устанавливаем обработчик Pong
 		conn.SetPongHandler(func(string) error {
 			conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 			return nil
@@ -298,17 +264,14 @@ func TestPingPong(t *testing.T) {
 	require.NoError(t, err)
 	defer ws.Close()
 
-	// Устанавливаем обработчик Pong
 	ws.SetPongHandler(func(string) error {
 		ws.SetReadDeadline(time.Now().Add(10 * time.Second))
 		return nil
 	})
 
-	// Отправляем Ping
 	err = ws.WriteMessage(websocket.PingMessage, []byte("ping"))
 	require.NoError(t, err)
 
-	// Проверяем, что соединение активно
 	err = ws.WriteMessage(websocket.TextMessage, []byte("test"))
 	require.NoError(t, err)
 }
@@ -317,40 +280,33 @@ func TestMaxMessageSize(t *testing.T) {
 	wg := setupTest(t)
 	defer teardownTest(t, wg)
 
-	// Create server with small message size limit
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		require.NoError(t, err)
 		defer conn.Close()
 
-		// Set a small read limit
-		conn.SetReadLimit(10) // Very small limit to ensure message is too big
+		conn.SetReadLimit(10)
 
-		// Read one message and expect it to fail
 		_, _, err = conn.ReadMessage()
 		if err == nil {
 			t.Error("Expected read limit exceeded error")
 		}
 
-		// Send close message
 		conn.WriteControl(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseMessageTooBig, "message too big"),
 			time.Now().Add(time.Second))
 	}))
 	defer server.Close()
 
-	// Connect client
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 	defer ws.Close()
 
-	// Send message larger than limit
 	largeMsg := strings.Repeat("a", 100)
 	err = ws.WriteMessage(websocket.TextMessage, []byte(largeMsg))
 	require.NoError(t, err)
 
-	// Try to read response - should fail with close message
 	_, _, err = ws.ReadMessage()
 	require.Error(t, err)
 	assert.True(t, websocket.IsCloseError(err, websocket.CloseMessageTooBig),
@@ -366,7 +322,6 @@ func TestConcurrentConnections(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 
-	// Create multiple concurrent connections
 	numClients := 5
 	clients := make([]*websocket.Conn, numClients)
 	for i := 0; i < numClients; i++ {
@@ -376,14 +331,12 @@ func TestConcurrentConnections(t *testing.T) {
 		clients[i] = ws
 	}
 
-	// Send messages from each client
 	for i, ws := range clients {
 		msg := fmt.Sprintf("Message from client %d", i)
 		err := ws.WriteMessage(websocket.TextMessage, []byte(msg))
 		require.NoError(t, err)
 	}
 
-	// Each client should receive messages from all other clients
 	for _, ws := range clients {
 		for i := 0; i < numClients; i++ {
 			_, msg, err := ws.ReadMessage()
@@ -402,19 +355,15 @@ func TestWebSocketReconnection(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 
-	// First connection
 	ws1, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 
-	// Close first connection
 	ws1.Close()
 
-	// Reconnect
 	ws2, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 	defer ws2.Close()
 
-	// Should be able to send/receive messages on new connection
 	testMsg := "Test after reconnection"
 	err = ws2.WriteMessage(websocket.TextMessage, []byte(testMsg))
 	require.NoError(t, err)
@@ -429,7 +378,6 @@ func TestWebSocketBroadcastToOthers(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 
-	// Connect three clients
 	ws1, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 	defer ws1.Close()
@@ -442,15 +390,12 @@ func TestWebSocketBroadcastToOthers(t *testing.T) {
 	require.NoError(t, err)
 	defer ws3.Close()
 
-	// Give time for connections to establish
 	time.Sleep(50 * time.Millisecond)
 
-	// Send message from first client
 	testMsg := "Broadcast test"
 	err = ws1.WriteMessage(websocket.TextMessage, []byte(testMsg))
 	require.NoError(t, err)
 
-	// Second and third clients should receive the message
 	_, msg2, err := ws2.ReadMessage()
 	require.NoError(t, err)
 	assert.Equal(t, testMsg, string(msg2))
@@ -469,16 +414,13 @@ func TestWebSocketCloseHandling(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 
-	// Connect client
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 
-	// Send close frame
 	err = ws.WriteMessage(websocket.CloseMessage,
 		websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	require.NoError(t, err)
 
-	// Try to send message after close
 	err = ws.WriteMessage(websocket.TextMessage, []byte("test"))
 	assert.Error(t, err)
 
@@ -494,7 +436,6 @@ func TestWebSocketPingPongTimeout(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 
-	// Connect with custom dialer that has short timeout
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 1 * time.Second,
 	}
@@ -503,10 +444,8 @@ func TestWebSocketPingPongTimeout(t *testing.T) {
 	require.NoError(t, err)
 	defer ws.Close()
 
-	// Set very short read deadline
 	ws.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
 
-	// Try to read - should timeout
 	_, _, err = ws.ReadMessage()
 	assert.Error(t, err)
 	netErr, ok := err.(net.Error)
@@ -523,13 +462,11 @@ func TestWebSocketBinaryMessageHandling(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		// Read one message
 		messageType, _, err := conn.ReadMessage()
 		if err != nil {
 			return
 		}
 
-		// If binary message received, close connection
 		if messageType == websocket.BinaryMessage {
 			conn.WriteControl(websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "binary messages not supported"),
@@ -544,12 +481,10 @@ func TestWebSocketBinaryMessageHandling(t *testing.T) {
 	require.NoError(t, err)
 	defer ws.Close()
 
-	// Send binary message
 	binaryData := []byte{0x01, 0x02, 0x03}
 	err = ws.WriteMessage(websocket.BinaryMessage, binaryData)
 	require.NoError(t, err)
 
-	// Try to read response - should get close message
 	_, _, err = ws.ReadMessage()
 	assert.Error(t, err)
 	assert.True(t, websocket.IsCloseError(err, websocket.CloseUnsupportedData),
@@ -561,7 +496,6 @@ func TestWebSocketInvalidUpgrade(t *testing.T) {
 	defer teardownTest(t, wg)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Send invalid response to prevent upgrade
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Invalid request"))
 	}))
@@ -569,7 +503,6 @@ func TestWebSocketInvalidUpgrade(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 
-	// Try to connect - should fail
 	_, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	assert.Error(t, err)
 }
@@ -583,7 +516,6 @@ func TestWebSocketConcurrentBroadcast(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 
-	// Create multiple clients
 	numClients := 10
 	clients := make([]*websocket.Conn, numClients)
 	for i := 0; i < numClients; i++ {
@@ -593,7 +525,6 @@ func TestWebSocketConcurrentBroadcast(t *testing.T) {
 		clients[i] = ws
 	}
 
-	// Send messages concurrently
 	var sendWg sync.WaitGroup
 	for i := 0; i < numClients; i++ {
 		sendWg.Add(1)
@@ -605,10 +536,8 @@ func TestWebSocketConcurrentBroadcast(t *testing.T) {
 		}(i)
 	}
 
-	// Wait for all messages to be sent
 	sendWg.Wait()
 
-	// Each client should receive all messages
 	for _, ws := range clients {
 		for i := 0; i < numClients; i++ {
 			_, msg, err := ws.ReadMessage()
@@ -627,7 +556,6 @@ func TestWebSocketCloseOnError(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		// Force an error by closing the connection immediately
 		conn.Close()
 	}))
 	defer server.Close()
@@ -638,7 +566,6 @@ func TestWebSocketCloseOnError(t *testing.T) {
 	require.NoError(t, err)
 	defer ws.Close()
 
-	// Try to read - should fail due to closed connection
 	_, _, err = ws.ReadMessage()
 	assert.Error(t, err)
 	assert.True(t, websocket.IsCloseError(err, websocket.CloseAbnormalClosure))
@@ -653,13 +580,11 @@ func TestWebSocketMessageValidation(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		// Read message
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			return
 		}
 
-		// Validate message length
 		if len(msg) > 1024 {
 			conn.WriteControl(websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.CloseMessageTooBig, "message too large"),
@@ -667,7 +592,6 @@ func TestWebSocketMessageValidation(t *testing.T) {
 			return
 		}
 
-		// Echo valid message
 		conn.WriteMessage(websocket.TextMessage, msg)
 	}))
 	defer server.Close()
@@ -678,27 +602,22 @@ func TestWebSocketMessageValidation(t *testing.T) {
 	require.NoError(t, err)
 	defer ws.Close()
 
-	// Send large message
 	largeMsg := strings.Repeat("a", 2048)
 	err = ws.WriteMessage(websocket.TextMessage, []byte(largeMsg))
 	require.NoError(t, err)
 
-	// Should receive close message
 	_, _, err = ws.ReadMessage()
 	assert.Error(t, err)
 	assert.True(t, websocket.IsCloseError(err, websocket.CloseMessageTooBig))
 
-	// Create new connection
 	ws2, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
 	defer ws2.Close()
 
-	// Send valid message
 	validMsg := "Hello"
 	err = ws2.WriteMessage(websocket.TextMessage, []byte(validMsg))
 	require.NoError(t, err)
 
-	// Should receive echo
 	_, msg, err := ws2.ReadMessage()
 	require.NoError(t, err)
 	assert.Equal(t, validMsg, string(msg))
@@ -718,7 +637,6 @@ func TestWebSocketHandlerErrors(t *testing.T) {
 		}))
 		defer server.Close()
 
-		// Make a regular HTTP request instead of WebSocket
 		req, err := http.NewRequest(http.MethodPost, server.URL, nil)
 		require.NoError(t, err)
 
@@ -734,7 +652,6 @@ func TestWebSocketHandlerErrors(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(handleConnections))
 		defer server.Close()
 
-		// Try to connect without WebSocket protocol
 		resp, err := http.Get(server.URL)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -756,7 +673,6 @@ func TestGlobalWebSocketHandlerErrors(t *testing.T) {
 		}))
 		defer server.Close()
 
-		// Make a regular HTTP request instead of WebSocket
 		req, err := http.NewRequest(http.MethodPost, server.URL, nil)
 		require.NoError(t, err)
 
@@ -772,7 +688,6 @@ func TestGlobalWebSocketHandlerErrors(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(handleGlobalConnections))
 		defer server.Close()
 
-		// Try to connect without WebSocket protocol
 		resp, err := http.Get(server.URL)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -838,8 +753,7 @@ func TestWebSocketConnectionLimit(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 
-	// Try to create more connections than the limit
-	maxConns := 50 // Reduced to a more reasonable number for testing
+	maxConns := 50
 	conns := make([]*websocket.Conn, 0, maxConns)
 	defer func() {
 		for _, conn := range conns {
@@ -858,7 +772,6 @@ func TestWebSocketConnectionLimit(t *testing.T) {
 		}
 		conns = append(conns, ws)
 
-		// Send a test message to verify connection is working
 		err = ws.WriteMessage(websocket.TextMessage, []byte("test"))
 		if err != nil {
 			connError = err
@@ -866,15 +779,12 @@ func TestWebSocketConnectionLimit(t *testing.T) {
 		}
 	}
 
-	// We should be able to create at least some connections
 	assert.Greater(t, len(conns), 0)
 
-	// If we got an error, it should be related to connection limits
 	if connError != nil {
 		assert.Contains(t, connError.Error(), "connection")
 	}
 
-	// Verify all connections can receive messages
 	for _, conn := range conns {
 		if conn != nil {
 			err := conn.WriteMessage(websocket.TextMessage, []byte("test"))

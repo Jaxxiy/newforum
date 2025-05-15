@@ -63,7 +63,6 @@ func TestCreateForum(t *testing.T) {
 
 	router.ServeHTTP(rr, req)
 
-	// Ожидаем статус 303, если обработчик перенаправляет
 	assert.Equal(t, http.StatusSeeOther, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
@@ -151,7 +150,6 @@ func TestUpdateMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Генерируем валидный токен
 	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -182,7 +180,6 @@ func TestDeleteMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Генерируем валидный токен
 	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -223,7 +220,6 @@ func TestGetMessagesAPI(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// TestListForumsError tests the error case for ListForums
 func TestListForumsError(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	var nilForums []models.Forum
@@ -242,7 +238,6 @@ func TestListForumsError(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// TestCreateForumInvalidInput tests CreateForum with invalid input
 func TestCreateForumInvalidInput(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	mockRepo.On("Create", mock.MatchedBy(func(forum models.Forum) bool {
@@ -262,7 +257,6 @@ func TestCreateForumInvalidInput(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// TestGetForumInvalidID tests GetForum with invalid ID
 func TestGetForumInvalidID(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -279,7 +273,6 @@ func TestGetForumInvalidID(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "GetByID")
 }
 
-// TestGetForumNotFound tests GetForum when forum is not found
 func TestGetForumNotFound(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	var nilForum *models.Forum
@@ -298,7 +291,6 @@ func TestGetForumNotFound(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// TestGetMessagesInvalidForumID tests GetMessages with invalid forum ID
 func TestGetMessagesInvalidForumID(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -315,7 +307,6 @@ func TestGetMessagesInvalidForumID(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "GetMessages")
 }
 
-// TestGetMessagesForumNotFound tests GetMessages when forum is not found
 func TestGetMessagesForumNotFound(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	var nilForum *models.Forum
@@ -334,7 +325,6 @@ func TestGetMessagesForumNotFound(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// TestUpdateMessageUnauthorized tests UpdateMessage without authorization
 func TestUpdateMessageUnauthorized(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -352,7 +342,6 @@ func TestUpdateMessageUnauthorized(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "PutMessage")
 }
 
-// TestUpdateMessageInvalidID tests UpdateMessage with invalid message ID
 func TestUpdateMessageInvalidID(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -374,7 +363,6 @@ func TestUpdateMessageInvalidID(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "PutMessage")
 }
 
-// TestUpdateMessageForbidden tests UpdateMessage with unauthorized user
 func TestUpdateMessageForbidden(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	user := &models.User{Username: "User2", Role: "user"}
@@ -401,7 +389,6 @@ func TestUpdateMessageForbidden(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "PutMessage")
 }
 
-// TestDeleteMessageUnauthorized tests DeleteMessage without authorization
 func TestDeleteMessageUnauthorized(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -418,7 +405,6 @@ func TestDeleteMessageUnauthorized(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "DeleteMessage")
 }
 
-// TestDeleteMessageInvalidID tests DeleteMessage with invalid message ID
 func TestDeleteMessageInvalidID(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -439,7 +425,6 @@ func TestDeleteMessageInvalidID(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "DeleteMessage")
 }
 
-// TestDeleteMessageForbidden tests DeleteMessage with unauthorized user
 func TestDeleteMessageForbidden(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	user := &models.User{Username: "User2", Role: "user"}
@@ -465,7 +450,6 @@ func TestDeleteMessageForbidden(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "DeleteMessage")
 }
 
-// TestGetMessagesAPIInvalidForumID tests GetMessagesAPI with invalid forum ID
 func TestGetMessagesAPIInvalidForumID(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -482,7 +466,6 @@ func TestGetMessagesAPIInvalidForumID(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "GetMessages")
 }
 
-// TestGetMessagesAPIWithAuth tests GetMessagesAPI with authentication
 func TestGetMessagesAPIWithAuth(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	messages := []models.Message{
@@ -591,8 +574,6 @@ func TestGetAllForums(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// TestLoginPage tests the login page handler
-
 func TestPostMessageInvalidJSON(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -661,7 +642,6 @@ func TestPostMessage(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// TestPostMessageEmptyFields tests PostMessage with empty fields
 func TestPostMessageEmptyFields(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -686,36 +666,6 @@ func TestPostMessageEmptyFields(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	mockRepo.AssertNotCalled(t, "CreateMessage")
 }
-
-// TestPostMessageInvalidForumID tests PostMessage with invalid forum ID
-/*
-func TestPostMessageInvalidForumID(t *testing.T) {
-	mockRepo := new(mocks.MockForumsRepo)
-
-	reqBody := `{"author":"User1","content":"Test Message"}`
-	req, err := http.NewRequest("POST", "/forums/invalid/messages", strings.NewReader(reqBody))
-	assert.NoError(t, err)
-
-	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
-	assert.NoError(t, err)
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-
-	vars := map[string]string{
-		"id": "invalid",
-	}
-	req = mux.SetURLVars(req, vars)
-
-	rr := httptest.NewRecorder()
-	handler := PostMessage(mockRepo)
-	handler.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	mockRepo.AssertNotCalled(t, "CreateMessage")
-}
-*/
-
-// TestPostMessageUnauthorized tests PostMessage without authorization
 func TestPostMessageUnauthorized(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -737,8 +687,6 @@ func TestPostMessageUnauthorized(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	mockRepo.AssertNotCalled(t, "CreateMessage")
 }
-
-// TestPostMessageForbidden tests PostMessage with unauthorized user
 func TestPostMessageForbidden(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	user := &models.User{Username: "User2", Role: "user"}
@@ -767,7 +715,6 @@ func TestPostMessageForbidden(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "CreateMessage")
 }
 
-// TestPostMessageError tests PostMessage with repository error
 func TestPostMessageError(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	user := &models.User{Username: "User1", Role: "user"}
@@ -797,7 +744,6 @@ func TestPostMessageError(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-// TestUpdateForumInvalidID tests UpdateForum with invalid ID
 func TestUpdateForumInvalidID(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -817,7 +763,6 @@ func TestUpdateForumInvalidID(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "Update")
 }
 
-// TestUpdateForumInvalidJSON tests UpdateForum with invalid JSON
 func TestUpdateForumInvalidJSON(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -836,8 +781,6 @@ func TestUpdateForumInvalidJSON(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	mockRepo.AssertNotCalled(t, "Update")
 }
-
-// TestUpdateForumError tests UpdateForum with repository error
 func TestUpdateForumError(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	mockRepo.On("Update", mock.AnythingOfType("int"), mock.AnythingOfType("models.Forum")).Return(assert.AnError)
@@ -858,8 +801,6 @@ func TestUpdateForumError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestDeleteForumInvalidID tests DeleteForum with invalid ID
 func TestDeleteForumInvalidID(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -878,8 +819,6 @@ func TestDeleteForumInvalidID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	mockRepo.AssertNotCalled(t, "Delete")
 }
-
-// TestDeleteForumError tests DeleteForum with repository error
 func TestDeleteForumError(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	mockRepo.On("Delete", mock.AnythingOfType("int")).Return(assert.AnError)
@@ -899,8 +838,6 @@ func TestDeleteForumError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestGetMessagesError tests GetMessages with repository error
 func TestGetMessagesError(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	forum := &models.Forum{ID: 1, Title: "Forum 1", Description: "Description 1"}
@@ -924,8 +861,6 @@ func TestGetMessagesError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestGetMessagesAPIError tests GetMessagesAPI with repository error
 func TestGetMessagesAPIError(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	var nilMessages []models.Message
@@ -947,8 +882,6 @@ func TestGetMessagesAPIError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestGetMessagesAPIWithInvalidToken tests GetMessagesAPI with invalid token
 func TestGetMessagesAPIWithInvalidToken(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	messages := []models.Message{
@@ -975,8 +908,6 @@ func TestGetMessagesAPIWithInvalidToken(t *testing.T) {
 	assert.Equal(t, "", response["currentRole"])
 	mockRepo.AssertExpectations(t)
 }
-
-// TestCreateForumDatabaseError тестирует обработку ошибки базы данных при создании форума
 func TestCreateForumDatabaseError(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	mockRepo.On("Create", mock.AnythingOfType("models.Forum")).Return(0, assert.AnError)
@@ -992,8 +923,6 @@ func TestCreateForumDatabaseError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestGetForumSuccess тестирует успешное получение форума
 func TestGetForumSuccess(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	forum := &models.Forum{ID: 1, Title: "Test Forum", Description: "Test Description"}
@@ -1011,8 +940,6 @@ func TestGetForumSuccess(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestGetForumDatabaseError тестирует обработку ошибки базы данных
 func TestGetForumDatabaseError(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	mockRepo.On("GetByID", 1).Return(nil, assert.AnError)
@@ -1026,32 +953,9 @@ func TestGetForumDatabaseError(t *testing.T) {
 
 	router.ServeHTTP(rr, req)
 
-	// Изменяем ожидаемый статус с 500 на 404
 	assert.Equal(t, http.StatusNotFound, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestHandleGlobalChatMessageSuccess тестирует успешную обработку сообщения в глобальном чате
-/*
-func TestHandleGlobalChatMessageSuccess(t *testing.T) {
-	mockRepo := new(mocks.MockForumsRepo)
-	mockRepo.On("CreateGlobalMessage", mock.AnythingOfType("models.GlobalMessage")).Return(1, nil)
-
-	reqBody := `{"username":"User1","text":"Test Message"}`
-	req, err := http.NewRequest("POST", "/global-chat", strings.NewReader(reqBody))
-		assert.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-
-		rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(handleGlobalChatMessage(mockRepo))
-	handler.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusCreated, rr.Code)
-	mockRepo.AssertExpectations(t)
-}
-*/
-
-// TestHandleGlobalChatMessageDatabaseError тестирует обработку ошибки базы данных
 func TestHandleGlobalChatMessageDatabaseError(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	mockRepo.On("CreateGlobalMessage", mock.AnythingOfType("models.GlobalMessage")).Return(0, assert.AnError)
@@ -1068,8 +972,6 @@ func TestHandleGlobalChatMessageDatabaseError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestUpdateMessageDatabaseError тестирует обработку ошибки базы данных при обновлении сообщения
 func TestUpdateMessageDatabaseError(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	user := &models.User{Username: "User1", Role: "admin"}
@@ -1096,8 +998,6 @@ func TestUpdateMessageDatabaseError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestDeleteMessageDatabaseError тестирует обработку ошибки базы данных при удалении сообщения
 func TestDeleteMessageDatabaseError(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	user := &models.User{Username: "User1", Role: "admin"}
@@ -1123,8 +1023,6 @@ func TestDeleteMessageDatabaseError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestGetAllForumsDatabaseError тестирует обработку ошибки базы данных
 func TestGetAllForumsDatabaseError(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	mockRepo.On("GetAll").Return(nil, assert.AnError)
@@ -1141,8 +1039,6 @@ func TestGetAllForumsDatabaseError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestPostMessageInvalidForumID тестирует обработку неверного ID форума
 func TestPostMessageInvalidForumID(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 
@@ -1164,11 +1060,9 @@ func TestPostMessageInvalidForumID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	mockRepo.AssertNotCalled(t, "CreateMessage")
 }
-
-// TestPostMessageUserNotFound тестирует обработку случая, когда пользователь не найден
 func TestPostMessageUserNotFound(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
-	// Возвращаем nil и ошибку
+
 	mockRepo.On("GetUserByID", 1).Return((*models.User)(nil), assert.AnError)
 
 	reqBody := `{"author":"User1","content":"Test Message"}`
@@ -1189,8 +1083,6 @@ func TestPostMessageUserNotFound(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestUpdateForumNotFound тестирует обновление несуществующего форума
 func TestUpdateForumNotFound(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	mockRepo.On("Update", 1, mock.AnythingOfType("models.Forum")).Return(assert.AnError)
@@ -1208,8 +1100,6 @@ func TestUpdateForumNotFound(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestDeleteForumNotFound тестирует удаление несуществующего форума
 func TestDeleteForumNotFound(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	mockRepo.On("Delete", 1).Return(assert.AnError)
@@ -1226,8 +1116,6 @@ func TestDeleteForumNotFound(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	mockRepo.AssertExpectations(t)
 }
-
-// TestGetMessagesAPIUnauthorized тестирует получение сообщений без авторизации
 func TestGetMessagesAPIUnauthorized(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	messages := []models.Message{
@@ -1253,8 +1141,6 @@ func TestGetMessagesAPIUnauthorized(t *testing.T) {
 	assert.Equal(t, "", response["currentRole"])
 	mockRepo.AssertExpectations(t)
 }
-
-// TestGetMessagesAPIWithExpiredToken тестирует с истекшим токеном
 func TestGetMessagesAPIWithExpiredToken(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	messages := []models.Message{
@@ -1263,7 +1149,6 @@ func TestGetMessagesAPIWithExpiredToken(t *testing.T) {
 
 	mockRepo.On("GetMessages", 1).Return(messages, nil)
 
-	// Генерируем токен с истекшим сроком действия
 	token, err := jwt.GenerateToken(1, testSecretKey, -1*time.Hour)
 	assert.NoError(t, err)
 
@@ -1287,7 +1172,7 @@ func TestGetMessagesAPIWithExpiredToken(t *testing.T) {
 }
 
 func TestServeWebSocket(t *testing.T) {
-	// Создаем тестовый сервер
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := map[string]string{"forum_id": "1"}
 		r = mux.SetURLVars(r, vars)
@@ -1295,19 +1180,15 @@ func TestServeWebSocket(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	// Конвертируем http:// в ws://
 	u := "ws" + strings.TrimPrefix(ts.URL, "http")
 
-	// Подключаемся к WebSocket
 	ws, _, err := websocket.DefaultDialer.Dial(u, nil)
 	if err != nil {
 		t.Fatalf("could not open a ws connection: %v", err)
 	}
 
-	// Даем время на регистрацию клиента
 	time.Sleep(100 * time.Millisecond)
 
-	// Проверяем, что клиент зарегистрирован
 	clientsMu.RLock()
 	clientCount := len(clients[1])
 	clientsMu.RUnlock()
@@ -1316,17 +1197,14 @@ func TestServeWebSocket(t *testing.T) {
 		t.Errorf("expected 1 client, got %d", clientCount)
 	}
 
-	// Корректно закрываем соединение
 	err = ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	if err != nil {
 		t.Logf("error sending close message: %v", err)
 	}
 	ws.Close()
 
-	// Даем время на удаление клиента
 	time.Sleep(100 * time.Millisecond)
 
-	// Проверяем, что клиент удален
 	clientsMu.RLock()
 	clientCount = len(clients[1])
 	clientsMu.RUnlock()
@@ -1337,7 +1215,6 @@ func TestServeWebSocket(t *testing.T) {
 }
 
 func TestBroadcastToForum(t *testing.T) {
-	// Создаем тестовый сервер
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := map[string]string{"forum_id": "1"}
 		r = mux.SetURLVars(r, vars)
@@ -1345,23 +1222,18 @@ func TestBroadcastToForum(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	// Конвертируем http:// в ws://
 	u := "ws" + strings.TrimPrefix(ts.URL, "http")
 
-	// Подключаемся к WebSocket
 	ws, _, err := websocket.DefaultDialer.Dial(u, nil)
 	if err != nil {
 		t.Fatalf("could not open a ws connection: %v", err)
 	}
 
-	// Даем время на регистрацию клиента
 	time.Sleep(100 * time.Millisecond)
 
-	// Отправляем тестовое сообщение
 	testMsg := WSMessage{Type: "test", Payload: "test payload"}
 	broadcastToForum(1, testMsg)
 
-	// Читаем сообщение с таймаутом
 	ws.SetReadDeadline(time.Now().Add(time.Second))
 	_, msg, err := ws.ReadMessage()
 	if err != nil {
@@ -1377,7 +1249,6 @@ func TestBroadcastToForum(t *testing.T) {
 		t.Errorf("expected message type %s, got %s", testMsg.Type, receivedMsg.Type)
 	}
 
-	// Корректно закрываем соединение
 	err = ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	if err != nil {
 		t.Logf("error sending close message: %v", err)
@@ -1389,25 +1260,20 @@ func TestServeGlobalChat(t *testing.T) {
 	mockRepo := new(mocks.MockForumsRepo)
 	mockRepo.On("GetGlobalChatHistory", 100).Return([]models.GlobalMessage{}, nil)
 
-	// Создаем тестовый сервер
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		serveGlobalChat(w, r, mockRepo)
 	}))
 	defer ts.Close()
 
-	// Конвертируем http:// в ws://
 	u := "ws" + strings.TrimPrefix(ts.URL, "http")
 
-	// Подключаемся к WebSocket
 	ws, _, err := websocket.DefaultDialer.Dial(u, nil)
 	if err != nil {
 		t.Fatalf("could not open a ws connection: %v", err)
 	}
 
-	// Даем время на регистрацию клиента
 	time.Sleep(100 * time.Millisecond)
 
-	// Проверяем, что клиент зарегистрирован
 	globalChatMu.RLock()
 	clientCount := len(globalChatClients)
 	globalChatMu.RUnlock()
@@ -1416,7 +1282,6 @@ func TestServeGlobalChat(t *testing.T) {
 		t.Errorf("expected 1 client, got %d", clientCount)
 	}
 
-	// Отправляем тестовое сообщение
 	testMsg := GlobalChatMessage{
 		Author:    "test",
 		Content:   "test message",
@@ -1427,7 +1292,6 @@ func TestServeGlobalChat(t *testing.T) {
 		t.Fatalf("could not send message: %v", err)
 	}
 
-	// Корректно закрываем соединение
 	err = ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	if err != nil {
 		t.Logf("error sending close message: %v", err)
@@ -1443,7 +1307,6 @@ func TestPostMessageWebSocketIntegration(t *testing.T) {
 	mockRepo.On("GetUserByID", mock.Anything).Return(user, nil)
 	mockRepo.On("CreateMessage", mock.Anything).Return(1, nil)
 
-	// Создаем тестовый сервер для WebSocket
 	wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := map[string]string{"forum_id": "1"}
 		r = mux.SetURLVars(r, vars)
@@ -1451,33 +1314,27 @@ func TestPostMessageWebSocketIntegration(t *testing.T) {
 	}))
 	defer wsServer.Close()
 
-	// Подключаемся к WebSocket
 	wsURL := "ws" + strings.TrimPrefix(wsServer.URL, "http")
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("could not open a ws connection: %v", err)
 	}
 
-	// Даем время на регистрацию клиента
 	time.Sleep(100 * time.Millisecond)
 
-	// Создаем тестовый HTTP сервер для POST запроса
 	router := mux.NewRouter()
 	router.HandleFunc("/forums/{id}/messages", PostMessage(mockRepo))
 
-	// Генерируем валидный токен
 	token, err := jwt.GenerateToken(1, testSecretKey, 24*time.Hour)
 	if err != nil {
 		t.Fatalf("could not generate token: %v", err)
 	}
 
-	// Отправляем POST запрос
 	reqBody := `{"author":"test","content":"hello"}`
 	req := httptest.NewRequest("POST", "/forums/1/messages", strings.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	// Устанавливаем переменные маршрутизации
 	vars := map[string]string{"id": "1"}
 	req = mux.SetURLVars(req, vars)
 
@@ -1486,7 +1343,6 @@ func TestPostMessageWebSocketIntegration(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, rr.Code)
 
-	// Читаем сообщение с таймаутом
 	ws.SetReadDeadline(time.Now().Add(time.Second))
 	_, msg, err := ws.ReadMessage()
 	if err != nil {
@@ -1500,7 +1356,6 @@ func TestPostMessageWebSocketIntegration(t *testing.T) {
 
 	assert.Equal(t, "message_created", wsMsg.Type)
 
-	// Корректно закрываем соединение
 	err = ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	if err != nil {
 		t.Logf("error sending close message: %v", err)
@@ -1511,7 +1366,6 @@ func TestPostMessageWebSocketIntegration(t *testing.T) {
 }
 
 func TestRenderTemplate(t *testing.T) {
-	// Создаем временный шаблон
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "test.html")
 	err := os.WriteFile(tmpFile, []byte("{{.Test}}"), 0644)
@@ -1519,7 +1373,6 @@ func TestRenderTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Переопределяем templates
 	oldTemplates := templates
 	defer func() { templates = oldTemplates }()
 	templates = template.Must(template.ParseGlob(filepath.Join(tmpDir, "*.html")))
