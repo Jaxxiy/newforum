@@ -1,22 +1,21 @@
 package main
 
 import (
-	"context"
 	"database/sql"
-	"log"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jaxxiy/newforum/core/logger"
 	_ "github.com/jaxxiy/newforum/forum_service/docs"
+	"github.com/jaxxiy/newforum/forum_service/internal/app"
 	"github.com/jaxxiy/newforum/forum_service/internal/handlers"
 	"github.com/jaxxiy/newforum/forum_service/internal/repository"
 	_ "github.com/lib/pq"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
+
+var log = logger.GetLogger()
 
 // @title Forum Service API
 // @version 1.0
@@ -45,6 +44,9 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
+	// Set development mode for more detailed logging
+	logger.SetDevelopmentMode(true)
+
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		dbURL = "postgres://postgres:Stas2005101010!@localhost:5432/forum?sslmode=disable"
@@ -52,12 +54,12 @@ func main() {
 
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Failed to connect to database", logger.Error(err))
 	}
 	defer db.Close()
 
 	if err := db.Ping(); err != nil {
-		log.Fatal(err)
+		log.Fatal("Failed to ping database", logger.Error(err))
 	}
 
 	forumsRepo := repository.NewForumsRepo(db)
@@ -68,35 +70,21 @@ func main() {
 
 	handlers.RegisterForumHandlers(r, forumsRepo)
 
-	httpPort := os.Getenv("PORT")
+	httpPort := os.Getenv("HTTP_PORT")
 	if httpPort == "" {
 		httpPort = "8080"
 	}
 
-	httpServer := &http.Server{
-		Addr:    ":" + httpPort,
-		Handler: corsMiddleware(r),
+	server, err := app.NewServer(httpPort)
+	if err != nil {
+		log.Fatal("Failed to create server", logger.Error(err))
 	}
 
-	go func() {
-		log.Printf("Starting HTTP server on port %s", httpPort)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start HTTP server: %v", err)
-		}
-	}()
+	log.Info("Starting HTTP server", logger.String("port", httpPort))
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	log.Println("Shutting down server...")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := httpServer.Shutdown(ctx); err != nil {
-		log.Fatalf("HTTP server shutdown failed: %v", err)
+	if err := server.Run(); err != nil {
+		log.Fatal("Failed to start HTTP server", logger.Error(err))
 	}
 
-	log.Println("Server stopped gracefully")
+	log.Info("Server stopped gracefully")
 }

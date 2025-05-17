@@ -2,97 +2,93 @@ package app
 
 import (
 	"context"
-	"log"
+	"database/sql"
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
+	"time"
 
-	//"github.com/golang-migrate/migrate/v4"
-	//"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 
 	"github.com/gorilla/mux"
+	"github.com/jaxxiy/newforum/core/logger"
 	"github.com/jaxxiy/newforum/forum_service/internal/handlers"
 	"github.com/jaxxiy/newforum/forum_service/internal/repository"
-	"github.com/jaxxiy/newforum/forum_service/internal/service"
 	"google.golang.org/grpc"
 )
+
+var log = logger.GetLogger()
 
 type Server struct {
 	httpServer *http.Server
 	grpcServer *grpc.Server
-	db         *repository.Postgres
-	wg         sync.WaitGroup
+	db         *sql.DB
 }
 
-func NewServer() *Server {
-	r := mux.NewRouter()
-
-	dsn := "postgres://postgres:Stas2005101010!@localhost:5432/forum?sslmode=disable"
-
-	db, err := repository.NewPostgres(dsn)
+func NewServer(port string) (*Server, error) {
+	db, err := sql.Open("postgres", os.Getenv("DB_DSN"))
 	if err != nil {
-		log.Fatalf("Не удалось подключиться к базе данных: %v", err)
+		log.Fatal("Failed to connect to database", logger.Error(err))
+		return nil, err
 	}
 
-	//driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
-	//if err != nil {
-	//	log.Fatalf("Не удалось создать драйвер миграций: %v", err)
-	//}
-
-	//m, err := migrate.NewWithDatabaseInstance(
-	//	"file://../../migrations",
-	//	"forum",
-	//	driver,
-	//)
-
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
-		log.Fatalf("Ошибка инициализации миграций: %v", err)
+		log.Fatal("Failed to create migrations driver", logger.Error(err))
+		return nil, err
 	}
 
-	// Применяем миграции
-	//if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-	//	log.Fatalf("Ошибка применения миграций: %v", err)
-	//}
-
-	forumRepo := repository.NewForumsRepo(db.DB)
-
-	handlers.RegisterForumHandlers(r, forumRepo)
-
-	r.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("C:/Users/Soulless/Desktop/myforum/cmd/frontend/"))))
-
-	httpSrv := &http.Server{
-		Addr:    ":8080",
-		Handler: r,
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations",
+		"postgres",
+		driver,
+	)
+	if err != nil {
+		log.Fatal("Failed to initialize migrations", logger.Error(err))
+		return nil, err
 	}
 
-	go service.StartWebSocket()
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		log.Fatal("Failed to apply migrations", logger.Error(err))
+		return nil, err
+	}
+
+	repo := repository.NewForumsRepo(db)
+	router := mux.NewRouter()
+
+	handlers.RegisterForumHandlers(router, repo)
 
 	return &Server{
-		httpServer: httpSrv,
-		db:         db,
-	}
+		httpServer: &http.Server{
+			Addr:    ":" + port,
+			Handler: router,
+		},
+		db: db,
+	}, nil
 }
 
 func (s *Server) Run() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	s.wg.Add(1)
 	go func() {
-		defer s.wg.Done()
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP остановился: %v", err)
+		if err := s.httpServer.ListenAndServe(); err != nil {
+			log.Error("HTTP server error", logger.Error(err))
 		}
 	}()
 
-	<-ctx.Done()
-	log.Println("Завершение работы...")
-	if err := s.httpServer.Shutdown(context.Background()); err != nil {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+	<-quit
+
+	log.Info("Shutting down...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := s.httpServer.Shutdown(ctx); err != nil {
 		return err
 	}
-	s.wg.Wait()
-	return nil
+
+	return s.db.Close()
 }

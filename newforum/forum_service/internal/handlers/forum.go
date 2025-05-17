@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"github.com/jaxxiy/newforum/core/logger"
 	"github.com/jaxxiy/newforum/core/pkg/jwt"
 	"github.com/jaxxiy/newforum/forum_service/internal/grpc"
 	"github.com/jaxxiy/newforum/forum_service/internal/models"
@@ -43,15 +43,17 @@ var (
 	}
 	globalChatBroadcast = make(chan GlobalChatMessage)
 	globalChatHistory   []GlobalChatMessage
+	messageExpiration   = 1 * time.Minute
 
 	authClient grpc.AuthClient
+	log        = logger.GetLogger()
 )
 
 func init() {
 	var err error
 	authClient, err = grpc.NewClient("localhost:50051")
 	if err != nil {
-		log.Fatalf("Failed to create auth client: %v", err)
+		log.Fatal("Failed to create auth client", logger.Error(err))
 	}
 }
 
@@ -72,6 +74,8 @@ type WSMessage struct {
 }
 
 func RegisterForumHandlers(r *mux.Router, repo repository.ForumsRepository) {
+	// Start the cleanup routine
+	go cleanupExpiredMessages(repo)
 
 	r.HandleFunc("/ws/global", func(w http.ResponseWriter, r *http.Request) {
 		serveGlobalChat(w, r, repo)
@@ -123,7 +127,7 @@ func serveWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade error: %v", err)
+		log.Error("WebSocket upgrade error", logger.Error(err))
 		return
 	}
 	defer func() {
@@ -142,7 +146,7 @@ func serveWebSocket(w http.ResponseWriter, r *http.Request) {
 		_, _, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
-				log.Printf("WebSocket error: %v", err)
+				log.Error("WebSocket error", logger.Error(err))
 			}
 			break
 		}
@@ -156,7 +160,9 @@ func broadcastToForum(forumID int, message WSMessage) {
 	if conns, ok := clients[forumID]; ok {
 		for conn := range conns {
 			if err := conn.WriteJSON(message); err != nil {
-				log.Printf("WS send error: %v", err)
+				log.Error("WS send error",
+					logger.Error(err),
+					logger.Int("forumID", forumID))
 				go handleFailedConnection(forumID, conn)
 			}
 		}
@@ -170,7 +176,7 @@ func handleFailedConnection(forumID int, conn *websocket.Conn) {
 	if conns, ok := clients[forumID]; ok {
 		conn.Close()
 		delete(conns, conn)
-		log.Printf("Connection removed for forum %d", forumID)
+		log.Info("Connection removed", logger.Int("forumID", forumID))
 	}
 }
 
@@ -182,7 +188,9 @@ func registerClient(forumID int, conn *websocket.Conn) {
 		clients[forumID] = make(map[*websocket.Conn]bool)
 	}
 	clients[forumID][conn] = true
-	log.Printf("New client for forum %d. Total: %d", forumID, len(clients[forumID]))
+	log.Info("New client connected",
+		logger.Int("forumID", forumID),
+		logger.Int("totalClients", len(clients[forumID])))
 }
 
 func unregisterClient(forumID int, conn *websocket.Conn) {
@@ -255,7 +263,7 @@ func PostMessage(repo repository.ForumsRepository) http.HandlerFunc {
 
 		id, err := repo.CreateMessage(msg)
 		if err != nil {
-			log.Printf("DB error: %v", err)
+			log.Error("DB error", logger.Error(err))
 			sendError(w, http.StatusInternalServerError, "Failed to save message")
 			return
 		}
@@ -283,7 +291,7 @@ func sendWSMessage(forumID int, message WSMessage) {
 	if conns, ok := clients[forumID]; ok {
 		for conn := range conns {
 			if err := conn.WriteJSON(message); err != nil {
-				log.Printf("WebSocket send error: %v", err)
+				log.Error("WebSocket send error", logger.Error(err))
 				go handleFailedConnection(forumID, conn)
 			}
 		}
@@ -649,14 +657,14 @@ func renderTemplate(w http.ResponseWriter, tmpl string, data interface{}) {
 func serveGlobalChat(w http.ResponseWriter, r *http.Request, repo repository.ForumsRepository) {
 	conn, err := globalChatUpgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("Global chat WebSocket upgrade error: %v", err)
+		log.Error("Global chat WebSocket upgrade error", logger.Error(err))
 		return
 	}
 
-	log.Println("Новое WebSocket соединение установлено")
+	log.Info("New WebSocket connection established")
 
 	defer func() {
-		log.Println("WebSocket соединение закрыто")
+		log.Info("WebSocket connection closed")
 		globalChatMu.Lock()
 		delete(globalChatClients, conn)
 		globalChatMu.Unlock()
@@ -669,7 +677,7 @@ func serveGlobalChat(w http.ResponseWriter, r *http.Request, repo repository.For
 
 	history, err := repo.GetGlobalChatHistory(100)
 	if err != nil {
-		log.Printf("Ошибка загрузки истории чата: %v", err)
+		log.Error("Error loading chat history", logger.Error(err))
 	} else {
 		for _, msg := range history {
 			chatMsg := GlobalChatMessage{
@@ -678,7 +686,7 @@ func serveGlobalChat(w http.ResponseWriter, r *http.Request, repo repository.For
 				CreatedAt: msg.CreatedAt,
 			}
 			if err := conn.WriteJSON(chatMsg); err != nil {
-				log.Printf("Ошибка отправки истории: %v", err)
+				log.Error("Error sending history", logger.Error(err))
 				break
 			}
 		}
@@ -688,7 +696,7 @@ func serveGlobalChat(w http.ResponseWriter, r *http.Request, repo repository.For
 		var msg GlobalChatMessage
 		if err := conn.ReadJSON(&msg); err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
-				log.Printf("Global chat error: %v", err)
+				log.Error("Global chat error", logger.Error(err))
 			}
 			break
 		}
@@ -699,10 +707,44 @@ func serveGlobalChat(w http.ResponseWriter, r *http.Request, repo repository.For
 			CreatedAt: time.Now(),
 		})
 		if err != nil {
-			log.Printf("Ошибка сохранения сообщения: %v", err)
+			log.Error("Error saving message", logger.Error(err))
 		}
 
 		globalChatBroadcast <- msg
+	}
+}
+
+func cleanupExpiredMessages(repo repository.ForumsRepository) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		now := time.Now()
+		globalChatMu.Lock()
+
+		// Cleanup memory storage
+		var activeMessages []GlobalChatMessage
+		for _, msg := range globalChatHistory {
+			if now.Sub(msg.CreatedAt) < messageExpiration {
+				activeMessages = append(activeMessages, msg)
+			}
+		}
+		globalChatHistory = activeMessages
+
+		// Broadcast cleanup to all clients
+		for client := range globalChatClients {
+			if err := client.WriteJSON(WSMessage{
+				Type: "cleanup",
+				Payload: map[string]interface{}{
+					"expiration": messageExpiration.Seconds(),
+				},
+			}); err != nil {
+				log.Error("Cleanup broadcast error", logger.Error(err))
+				client.Close()
+				delete(globalChatClients, client)
+			}
+		}
+		globalChatMu.Unlock()
 	}
 }
 
@@ -711,16 +753,18 @@ func handleGlobalChatMessages() {
 		msg := <-globalChatBroadcast
 		globalChatMu.Lock()
 
-		globalChatHistory = append(globalChatHistory, msg)
-		if len(globalChatHistory) > 100 {
-			globalChatHistory = globalChatHistory[1:]
-		}
+		if time.Since(msg.CreatedAt) < messageExpiration {
+			globalChatHistory = append(globalChatHistory, msg)
+			if len(globalChatHistory) > 100 {
+				globalChatHistory = globalChatHistory[1:]
+			}
 
-		for client := range globalChatClients {
-			if err := client.WriteJSON(msg); err != nil {
-				log.Printf("Ошибка отправки: %v", err)
-				client.Close()
-				delete(globalChatClients, client)
+			for client := range globalChatClients {
+				if err := client.WriteJSON(msg); err != nil {
+					log.Error("Error sending message", logger.Error(err))
+					client.Close()
+					delete(globalChatClients, client)
+				}
 			}
 		}
 		globalChatMu.Unlock()
@@ -756,7 +800,7 @@ func handleGlobalChatMessage(repo repository.ForumsRepository) http.HandlerFunc 
 
 		id, err := repo.CreateGlobalMessage(msgmodels)
 		if err != nil {
-			log.Printf("DB error: %v", err)
+			log.Error("DB error", logger.Error(err))
 			http.Error(w, `{"error": "Failed to save message"}`, http.StatusInternalServerError)
 			return
 		}
@@ -766,7 +810,7 @@ func handleGlobalChatMessage(repo repository.ForumsRepository) http.HandlerFunc 
 			Content:   req.Content,
 			CreatedAt: time.Now(),
 		}
-		log.Printf("Sending message %v to websocket", msgWebSocket)
+		log.Info("Sending message to websocket", logger.String("author", req.Author), logger.String("text", req.Content))
 
 		globalChatBroadcast <- msgWebSocket
 
@@ -814,7 +858,7 @@ func GetMessagesAPI(repo repository.ForumsRepository) http.HandlerFunc {
 			if tokenString != "" && authClient != nil {
 				user, err := authClient.GetUserByToken(ctx, tokenString)
 				if err != nil {
-					log.Printf("Error getting user by token: %v", err)
+					log.Error("Error getting user by token", logger.Error(err))
 				} else if user != nil {
 					currentUser = user.Username
 					currentRole = user.Role

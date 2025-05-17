@@ -1,12 +1,14 @@
 package service
 
 import (
-	"log"
 	"net/http"
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/jaxxiy/newforum/core/logger"
 )
+
+var log = logger.GetLogger()
 
 // Общие переменные (для первого соединения)
 var upgrader = websocket.Upgrader{
@@ -45,12 +47,12 @@ func StartWebSocket() {
 	//Первое соединение
 	http.HandleFunc("/ws", handleConnections)
 	go handleMessages()
-	log.Println("WebSocket server (первое соединение) started on :8081")
+	log.Info("WebSocket server started", logger.String("connection", "primary"), logger.String("port", "8081"))
 
 	//Второе соединение
-	http.HandleFunc("/ws/global", handleGlobalConnections)               // Новый обработчик
-	go handleGlobalMessages()                                            // Новая горутина
-	log.Println("WebSocket server (второе соединение) started on :8082") //Другой порт
+	http.HandleFunc("/ws/global", handleGlobalConnections)
+	go handleGlobalMessages()
+	log.Info("WebSocket server started", logger.String("connection", "global"), logger.String("port", "8082"))
 
 	// Signal that handlers are ready
 	if isTestMode {
@@ -60,12 +62,16 @@ func StartWebSocket() {
 	// Запускаем сервер
 	go func() {
 		if err := http.ListenAndServe(":8081", nil); err != nil && err != http.ErrServerClosed {
-			log.Printf("WebSocket server (первое соединение) error: %v", err)
+			log.Error("WebSocket server error",
+				logger.String("connection", "primary"),
+				logger.Error(err))
 		}
 	}()
 
 	if err := http.ListenAndServe(":8082", nil); err != nil && err != http.ErrServerClosed {
-		log.Printf("WebSocket server (второе соединение) error: %v", err)
+		log.Error("WebSocket server error",
+			logger.String("connection", "global"),
+			logger.Error(err))
 	}
 }
 
@@ -73,7 +79,7 @@ func StartWebSocket() {
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println(err)
+		log.Error("WebSocket upgrade error", logger.Error(err))
 		return
 	}
 
@@ -96,7 +102,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		select {
 		case broadcast <- string(msg):
 		default:
-			log.Println("Message dropped: channel full")
+			log.Warn("Message dropped: channel full")
 		}
 
 		if isTestMode {
@@ -113,7 +119,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 func handleGlobalConnections(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgraderGlobal.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println(err)
+		log.Error("WebSocket upgrade error", logger.Error(err))
 		return
 	}
 
@@ -136,7 +142,7 @@ func handleGlobalConnections(w http.ResponseWriter, r *http.Request) {
 		select {
 		case globalBroadcast <- string(msg):
 		default:
-			log.Println("Global message dropped: channel full")
+			log.Warn("Global message dropped: channel full")
 		}
 
 		if isTestMode {

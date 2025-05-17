@@ -4,9 +4,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/jaxxiy/newforum/core/logger"
 	"github.com/jaxxiy/newforum/forum_service/internal/models"
 )
+
+var log = logger.GetLogger()
 
 type ForumsRepository interface {
 	GetAll() ([]models.Forum, error)
@@ -237,8 +241,10 @@ func (r *ForumsRepo) GetGlobalChatHistory(limit int) ([]models.GlobalMessage, er
 	rows, err := r.DB.Query(`
         SELECT id, author, message, created_at 
         FROM chat_messages
+        WHERE created_at > $1
         ORDER BY created_at ASC 
-        LIMIT $1`, limit)
+        LIMIT $2`,
+		time.Now().Add(-1*time.Minute), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +260,20 @@ func (r *ForumsRepo) GetGlobalChatHistory(limit int) ([]models.GlobalMessage, er
 		history = append(history, msg)
 	}
 
+	// Cleanup expired messages
+	go r.cleanupExpiredMessages()
+
 	return history, nil
+}
+
+func (r *ForumsRepo) cleanupExpiredMessages() {
+	_, err := r.DB.Exec(`
+		DELETE FROM chat_messages 
+		WHERE created_at < $1`,
+		time.Now().Add(-1*time.Minute))
+	if err != nil {
+		log.Error("Error cleaning up expired messages", logger.Error(err))
+	}
 }
 
 func (r *ForumsRepo) GetUserByID(userID int) (*models.User, error) {

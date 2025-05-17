@@ -529,16 +529,49 @@
 
             chatWs.onmessage = function(event) {
                 const data = JSON.parse(event.data);
+                
+                if (data.type === 'cleanup') {
+                    // Remove expired messages
+                    const messages = chatMessages.getElementsByClassName('message');
+                    const now = new Date();
+                    Array.from(messages).forEach(messageEl => {
+                        const timestamp = messageEl.getAttribute('data-timestamp');
+                        if (timestamp && (now - new Date(timestamp)) > data.payload.expiration * 1000) {
+                            messageEl.remove();
+                        }
+                    });
+                    return;
+                }
+
                 const messageElement = document.createElement('div');
                 messageElement.className = 'message';
+                messageElement.setAttribute('data-timestamp', data.timestamp);
                 messageElement.innerHTML = `
                     <div class="message-author">${escapeHtml(data.username)}:</div>
                     <div class="message-content">${escapeHtml(data.text)}</div>
                     <div class="message-time" style="font-size:12px;color:#666">${escapeHtml(formatMessageTimestamp(data.timestamp))}</div>
                 `;
+                
+                // Set timeout to remove the message after 1 minute
+                setTimeout(() => {
+                    messageElement.remove();
+                }, 60000);
+                
                 chatMessages.appendChild(messageElement);
                 chatMessages.scrollTop = chatMessages.scrollHeight;
             };
+
+            // Add automatic cleanup for existing messages
+            setInterval(() => {
+                const messages = chatMessages.getElementsByClassName('message');
+                const now = new Date();
+                Array.from(messages).forEach(messageEl => {
+                    const timestamp = messageEl.getAttribute('data-timestamp');
+                    if (timestamp && (now - new Date(timestamp)) > 60000) {
+                        messageEl.remove();
+                    }
+                });
+            }, 10000);
 
             function formatMessageTimestamp(timestamp) {
                 const date = new Date(timestamp);

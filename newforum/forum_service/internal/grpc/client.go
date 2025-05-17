@@ -3,83 +3,72 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
-	pb "github.com/jaxxiy/newforum/core/proto"
+	"github.com/jaxxiy/newforum/core/logger"
+	"github.com/jaxxiy/newforum/forum_service/internal/models"
+	pb "github.com/jaxxiy/newforum/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type Client struct {
+var log = logger.GetLogger()
+
+type authClient struct {
 	client pb.AuthServiceClient
 	conn   *grpc.ClientConn
 }
 
-func NewClient(authServiceAddr string) (*Client, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func NewClient(authServiceAddr string) (AuthClient, error) {
+	log.Info("Connecting to auth service", logger.String("address", authServiceAddr))
 
-	log.Printf("Connecting to auth service at %s", authServiceAddr)
-
-	conn, err := grpc.DialContext(ctx, authServiceAddr,
+	conn, err := grpc.Dial(authServiceAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithBlock(),
+		grpc.WithTimeout(5*time.Second),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to auth service: %v", err)
+		return nil, fmt.Errorf("failed to connect to auth service: %w", err)
 	}
 
-	client := pb.NewAuthServiceClient(conn)
-	return &Client{
-		client: client,
+	return &authClient{
+		client: pb.NewAuthServiceClient(conn),
 		conn:   conn,
 	}, nil
 }
 
-func (c *Client) Close() error {
+func (c *authClient) GetUserByID(ctx context.Context, userID int) (*models.User, error) {
+	resp, err := c.client.GetUserByID(ctx, &pb.GetUserByIDRequest{
+		UserId: int64(userID),
+	})
+	if err != nil {
+		log.Error("Error getting user by ID",
+			logger.Error(err),
+			logger.Int("userID", userID))
+		return nil, err
+	}
+
+	return &models.User{
+		ID:        int(resp.User.Id),
+		Username:  resp.User.Username,
+		Email:     resp.User.Email,
+		Role:      resp.User.Role,
+		CreatedAt: time.Unix(resp.User.CreatedAt, 0),
+		UpdatedAt: time.Unix(resp.User.UpdatedAt, 0),
+	}, nil
+}
+
+func (c *authClient) GetUserByToken(ctx context.Context, token string) (*pb.UserResponse, error) {
+	log.Debug("Sending GetUserByToken request", logger.String("token", token))
+
+	return c.client.GetUserByToken(ctx, &pb.GetUserByTokenRequest{
+		Token: token,
+	})
+}
+
+func (c *authClient) Close() error {
 	if c.conn != nil {
 		return c.conn.Close()
 	}
 	return nil
-}
-
-func (c *Client) GetUserByID(ctx context.Context, userID int) (*pb.UserResponse, error) {
-	if c.client == nil {
-		return nil, fmt.Errorf("gRPC client is not initialized")
-	}
-
-	req := &pb.GetUserRequest{
-		UserId: int32(userID),
-	}
-
-	resp, err := c.client.GetUserByID(ctx, req)
-	if err != nil {
-		log.Printf("Error getting user by ID: %v", err)
-		return nil, err
-	}
-	return resp, nil
-}
-
-func (c *Client) GetUserByToken(ctx context.Context, token string) (*pb.UserResponse, error) {
-	if c.client == nil {
-		return nil, fmt.Errorf("gRPC client is not initialized")
-	}
-
-	if token == "" {
-		return nil, nil
-	}
-
-	req := &pb.GetUserByTokenRequest{
-		Token: token,
-	}
-
-	log.Printf("Sending GetUserByToken request with token: %s", token)
-
-	resp, err := c.client.GetUserByToken(ctx, req)
-	if err != nil {
-		log.Printf("Error getting user by token: %v", err)
-		return nil, err
-	}
-	return resp, nil
 }
